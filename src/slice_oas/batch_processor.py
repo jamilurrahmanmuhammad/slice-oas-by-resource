@@ -22,6 +22,11 @@ from .output_manager import write_output_file, sanitize_path
 from .converter import VersionConverter
 from .exceptions import InvalidOASError
 from .models import VersionConversionRequest
+from .csv_manager import (
+    CSVIndexManager,
+    create_csv_index_entry,
+    extract_csv_metadata,
+)
 
 
 class BatchProcessor:
@@ -43,6 +48,8 @@ class BatchProcessor:
         self.failed_endpoints: list = []
         self.output_files: list = []
         self.start_time = 0.0
+        self.csv_manager: Optional[CSVIndexManager] = None
+        self.csv_index_path: Optional[Path] = None
 
     def _default_callback(self, extracted: int, total: int, path: str = "", method: str = ""):
         """Default no-op callback."""
@@ -93,6 +100,13 @@ class BatchProcessor:
 
         # Create output directory
         self.request.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize CSV manager if enabled (Constitution Principle V)
+        if self.request.generate_csv and not self.request.dry_run:
+            self.csv_index_path = self.request.output_dir / "sliced-resources-index.csv"
+            self.csv_manager = CSVIndexManager(self.csv_index_path)
+            # Use append mode to preserve existing entries
+            self.csv_manager.initialize(append_mode=True)
 
         # Process in parallel if not dry-run
         if self.request.dry_run:
@@ -151,7 +165,7 @@ class BatchProcessor:
             failed_count=self.failed_count,
             validation_pass_rate=validation_pass_rate,
             elapsed_time=elapsed,
-            csv_index_path=None,  # Set by CSV manager if needed
+            csv_index_path=self.csv_index_path,
             failed_endpoints=self.failed_endpoints,
             output_files=self.output_files,
         )
@@ -231,11 +245,58 @@ class BatchProcessor:
             output_path = self.request.output_dir / filename
             write_output_file(output_path, output_content)
 
+            # Add CSV entry if CSV manager is enabled (real-time update)
+            if self.csv_manager is not None:
+                self._add_csv_entry(extracted_doc, path, method, output_path, output_version)
+
             return output_path
 
         except Exception as e:
             self.failed_endpoints.append((path, method, str(e)))
             return None
+
+    def _add_csv_entry(
+        self,
+        doc: Dict[str, Any],
+        path: str,
+        method: str,
+        output_path: Path,
+        output_version: str,
+    ) -> None:
+        """Add entry to CSV index after successful extraction.
+
+        Args:
+            doc: Extracted OAS document
+            path: OpenAPI path
+            method: HTTP method
+            output_path: Path to output file
+            output_version: Output OAS version
+        """
+        try:
+            metadata = extract_csv_metadata(doc, path, method, output_path, output_version)
+
+            entry = create_csv_index_entry(
+                path=metadata["path"],
+                method=metadata["method"],
+                summary=metadata["summary"],
+                description=metadata["description"],
+                operation_id=metadata["operation_id"],
+                tags=metadata["tags"],
+                filename=metadata["filename"],
+                file_size_kb=metadata["file_size_kb"],
+                schema_count=metadata["schema_count"],
+                parameter_count=metadata["parameter_count"],
+                response_codes=metadata["response_codes"],
+                security_required=metadata["security_required"],
+                deprecated=metadata["deprecated"],
+                output_oas_version=metadata["output_oas_version"],
+            )
+
+            # Append with duplicate detection
+            self.csv_manager.append_entry(entry, skip_duplicates=True)
+        except Exception:
+            # CSV failures should not fail the extraction
+            pass
 
     def _generate_filename(self, path: str, method: str) -> str:
         """Generate sanitized filename for endpoint.

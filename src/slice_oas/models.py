@@ -140,8 +140,11 @@ class CSVIndexEntry(BaseModel):
     output_oas_version: str  # 3.0.x or 3.1.x
 
     def to_csv_row(self) -> List[str]:
-        """Format as RFC 4180 CSV row."""
-        values = [
+        """Format as RFC 4180 CSV row.
+
+        Returns raw values - csv.writer handles RFC 4180 escaping automatically.
+        """
+        return [
             self.path,
             self.method,
             self.summary or "",
@@ -158,14 +161,6 @@ class CSVIndexEntry(BaseModel):
             self.created_at,
             self.output_oas_version,
         ]
-        # Escape quotes and wrap in quotes if needed
-        escaped = []
-        for val in values:
-            if '"' in val or ',' in val or '\n' in val:
-                escaped.append(f'"{val.replace(chr(34), chr(34) + chr(34))}"')
-            else:
-                escaped.append(val)
-        return escaped
 
 
 class TransformationRule(BaseModel):

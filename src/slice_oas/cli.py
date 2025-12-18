@@ -120,6 +120,13 @@ Examples:
         help="Keep all examples in converted output (default: true)"
     )
 
+    parser.add_argument(
+        "--no-csv",
+        action="store_true",
+        default=False,
+        help="Disable CSV index generation in batch mode (default: generate CSV)"
+    )
+
     return parser.parse_args(args)
 
 
@@ -249,6 +256,8 @@ def print_batch_summary(result) -> None:
     sys.stdout.write(f"Time: {result.elapsed_time:.1f}s\n")
     sys.stdout.write(f"Output directory: {result.output_files[0].parent if result.output_files else 'N/A'}\n")
     sys.stdout.write(f"Files created: {len(result.output_files)}\n")
+    if result.csv_index_path:
+        sys.stdout.write(f"CSV index: {result.csv_index_path}\n")
 
 
 def format_conversion_error_summary(failed_endpoints: List[tuple]) -> str:
@@ -312,6 +321,8 @@ def print_conversion_summary(result, source_version: str, target_version: str) -
     sys.stdout.write(f"Time: {result.elapsed_time:.1f}s\n")
     sys.stdout.write(f"Output directory: {result.output_files[0].parent if result.output_files else 'N/A'}\n")
     sys.stdout.write(f"Files created: {len(result.output_files)}\n")
+    if result.csv_index_path:
+        sys.stdout.write(f"CSV index: {result.csv_index_path}\n")
 
 
 def _extract_single_endpoint(args, doc: dict, oas_version: str) -> None:
@@ -475,7 +486,7 @@ def _extract_batch(args, doc: dict, oas_version: str) -> None:
         output_version=output_version,
         concurrency=concurrency,
         output_format=args.format,
-        generate_csv=True,
+        generate_csv=not getattr(args, 'no_csv', False),
         dry_run=args.dry_run,
         strict_mode=getattr(args, 'strict', False),
         preserve_examples=getattr(args, 'preserve_examples', True),

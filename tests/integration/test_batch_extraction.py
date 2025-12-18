@@ -367,8 +367,8 @@ class TestBatchParallelConsistency:
         processor = create_batch_processor(request)
         result = processor.process()
 
-        # Count files in output directory
-        output_files = list(temp_output_dir.glob("*.*"))
+        # Count YAML files in output directory (excludes CSV index)
+        output_files = list(temp_output_dir.glob("*.yaml"))
         assert len(output_files) == len(result.output_files)
 
 

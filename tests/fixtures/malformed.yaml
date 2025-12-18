@@ -1,0 +1,14 @@
+openapi: 3.0.0
+info:
+  title: Malformed API
+  # Missing required version field
+paths:
+  /broken:
+    get:
+      responses:
+        '200':
+          # Missing required description
+          content:
+            application/json:
+              schema:
+                type: object

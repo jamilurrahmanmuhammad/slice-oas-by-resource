@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info:
+  title: Advanced API with Webhooks
+  version: 1.0.0
+paths:
+  /events:
+    post:
+      summary: Create event
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+      responses:
+        '201':
+          description: Created
+webhooks:
+  eventCreated:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+      responses:
+        '200':
+          description: Webhook processed
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+        data:
+          type: [object, "null"]

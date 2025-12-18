@@ -3,8 +3,14 @@
 Implements 7-phase validation checkpoint strategy.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from slice_oas.models import ValidationResult, ValidationPhase
+
+try:
+    from openapi_spec_validator import validate_spec, ValidationError as OASValidationError
+    HAS_OAS_VALIDATOR = True
+except ImportError:
+    HAS_OAS_VALIDATOR = False
 
 
 class EndpointValidator:
@@ -316,3 +322,96 @@ class EndpointValidator:
                 passed=False,
                 error_message=str(e)
             )
+
+
+def validate_converted_document(doc: Dict[str, Any], target_version: str) -> Tuple[bool, List[str]]:
+    """Validate a document against target OpenAPI version specification.
+
+    Used for post-conversion validation to ensure the converted document
+    complies with the target OAS version (3.0.x or 3.1.x).
+
+    Args:
+        doc: Document to validate (converted OAS document)
+        target_version: Target OAS version ("3.0.x" or "3.1.x")
+
+    Returns:
+        Tuple of (is_valid, error_messages)
+        - is_valid: True if document passes all validation checks
+        - error_messages: List of validation error strings (empty if valid)
+    """
+    errors = []
+
+    # Basic structure validation
+    if not isinstance(doc, dict):
+        errors.append("Document must be a dictionary")
+        return False, errors
+
+    if "openapi" not in doc:
+        errors.append("Missing required 'openapi' field")
+        return False, errors
+
+    # Validate version matches target
+    openapi_version = doc.get("openapi", "")
+    target_major_minor = target_version.split(".")[0:2]  # e.g., ["3", "0"] or ["3", "1"]
+    doc_major_minor = openapi_version.split(".")[0:2]
+
+    if doc_major_minor != target_major_minor:
+        errors.append(
+            f"Document version {openapi_version} does not match target {target_version}"
+        )
+        return False, errors
+
+    if "info" not in doc:
+        errors.append("Missing required 'info' field")
+        return False, errors
+
+    if "paths" not in doc:
+        errors.append("Missing required 'paths' field")
+        return False, errors
+
+    # Version-specific structure validation
+    if target_version.startswith("3.0"):
+        # 3.0.x specific validations
+        # Check for 3.1-only features that should have been removed
+        if "webhooks" in doc:
+            errors.append("Webhooks found in document but target is 3.0.x (should be removed)")
+
+        # Check schemas for unconvertible 3.1 constructs
+        components = doc.get("components", {})
+        schemas = components.get("schemas", {})
+        for schema_name, schema in schemas.items():
+            if not isinstance(schema, dict):
+                continue
+            # Check for JSON Schema conditionals (if/then/else) which are 3.1 only
+            if any(key in schema for key in ["if", "then", "else"]):
+                errors.append(
+                    f"Schema '{schema_name}' contains JSON Schema conditionals "
+                    "(if/then/else) which are not supported in 3.0.x"
+                )
+
+    elif target_version.startswith("3.1"):
+        # 3.1.x specific validations
+        # Check for proper type array syntax in schemas
+        components = doc.get("components", {})
+        schemas = components.get("schemas", {})
+        for schema_name, schema in schemas.items():
+            if not isinstance(schema, dict):
+                continue
+            # Validate that nullable=true has been converted to type arrays if present
+            if "nullable" in schema:
+                errors.append(
+                    f"Schema '{schema_name}' still contains 'nullable' "
+                    "(should be converted to type array in 3.1.x)"
+                )
+
+    # Use openapi-spec-validator if available for comprehensive validation
+    if HAS_OAS_VALIDATOR:
+        try:
+            validate_spec(doc)
+        except OASValidationError as e:
+            errors.append(f"OpenAPI specification validation failed: {str(e)}")
+        except Exception as e:
+            # Catch other exceptions from validator
+            errors.append(f"Validation error: {str(e)}")
+
+    return len(errors) == 0, errors

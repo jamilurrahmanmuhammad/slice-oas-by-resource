@@ -104,14 +104,15 @@ class ValidationResult(BaseModel):
     def to_user_message(self) -> str:
         """Convert technical details to plain language for users."""
         if self.passed:
-            return f"Phase {self.phase.value} validation passed ✓"
+            return f"Phase {self.phase.value} validation passed"
 
         # User-friendly error messages (Principle I: Black Box)
+        # No technical terms like JSON, YAML, schema, etc.
         messages = {
-            ValidationPhase.FILE_STRUCTURE: "The file format is invalid. Please check that it's a valid YAML or JSON file.",
+            ValidationPhase.FILE_STRUCTURE: "The file format is invalid. Please check that it's a valid OpenAPI specification file.",
             ValidationPhase.OPERATION_INTEGRITY: "The endpoint definition is incomplete. Please verify the operation is properly defined.",
             ValidationPhase.RESPONSE_INTEGRITY: "The response definition has issues. Please check response codes and content types.",
-            ValidationPhase.REFERENCE_RESOLUTION: "Some components referenced in the endpoint cannot be found. Please verify all schema references exist.",
+            ValidationPhase.REFERENCE_RESOLUTION: "Some components referenced in the endpoint cannot be found. Please verify all required definitions exist in the file.",
             ValidationPhase.COMPONENT_COMPLETENESS: "Some required components are missing from the output. This is likely a tool issue—please contact support.",
             ValidationPhase.PAYLOAD_EQUIVALENCE: "The extracted endpoint doesn't match the original. Please try again.",
             ValidationPhase.VERSION_VALIDATION: "The output format doesn't match the requested OpenAPI version. Please try again.",
@@ -140,8 +141,11 @@ class CSVIndexEntry(BaseModel):
     output_oas_version: str  # 3.0.x or 3.1.x
 
     def to_csv_row(self) -> List[str]:
-        """Format as RFC 4180 CSV row."""
-        values = [
+        """Format as RFC 4180 CSV row.
+
+        Returns raw values - csv.writer handles RFC 4180 escaping automatically.
+        """
+        return [
             self.path,
             self.method,
             self.summary or "",
@@ -158,14 +162,6 @@ class CSVIndexEntry(BaseModel):
             self.created_at,
             self.output_oas_version,
         ]
-        # Escape quotes and wrap in quotes if needed
-        escaped = []
-        for val in values:
-            if '"' in val or ',' in val or '\n' in val:
-                escaped.append(f'"{val.replace(chr(34), chr(34) + chr(34))}"')
-            else:
-                escaped.append(val)
-        return escaped
 
 
 class TransformationRule(BaseModel):
@@ -216,6 +212,8 @@ class BatchExtractionRequest:
     output_format: str = "yaml"
     generate_csv: bool = True
     dry_run: bool = False
+    strict_mode: bool = False  # For version conversion: fail on unconvertible constructs
+    preserve_examples: bool = True  # For version conversion: keep all examples
 
 
 @dataclass
@@ -229,6 +227,29 @@ class BatchExtractionResult:
     csv_index_path: Optional[Path] = None
     failed_endpoints: List[Tuple[str, str, str]] = field(default_factory=list)
     output_files: List[Path] = field(default_factory=list)
+
+
+@dataclass
+class VersionConversionRequest:
+    """Request parameters for version conversion (3.0 ↔ 3.1)."""
+    source_version: str  # "3.0.x" or "3.1.x"
+    target_version: str  # "3.0.x" or "3.1.x"
+    transformation_rules: List[Dict[str, Any]] = field(default_factory=list)
+    strict_mode: bool = False  # Fail on unconvertible structures
+    preserve_examples: bool = True
+    input_document: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class ConversionResult:
+    """Result of version conversion."""
+    success: bool
+    source_version: str
+    target_version: str
+    converted_document: Optional[Dict[str, Any]] = None
+    warnings: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    elapsed_time: float = 0.0
 
 
 # Update forward references

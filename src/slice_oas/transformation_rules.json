@@ -1,0 +1,224 @@
+{
+  "version": "1.0.0",
+  "description": "Bidirectional transformation rules for OpenAPI 3.0.x ↔ 3.1.x conversion",
+  "rules_30_to_31": [
+    {
+      "id": "nullable_to_type_array",
+      "priority": 1,
+      "pattern": "nullable",
+      "scope": ["schema.properties", "parameters"],
+      "description": "Convert nullable: true to type: [type, 'null'] (JSON Schema 2020-12)",
+      "action": {
+        "type": "transform",
+        "source": {
+          "match": "nullable",
+          "value": true
+        },
+        "target": {
+          "remove": ["nullable"],
+          "transform": "type_to_array"
+        }
+      }
+    },
+    {
+      "id": "discriminator_property_to_mapping",
+      "priority": 2,
+      "pattern": "discriminator",
+      "scope": ["schema"],
+      "description": "Convert discriminator.propertyName to discriminator.mapping (3.1 enhancement)",
+      "action": {
+        "type": "transform",
+        "source": {
+          "match": "discriminator.propertyName"
+        },
+        "target": {
+          "add_mapping": "from_oneof_refs"
+        }
+      }
+    },
+    {
+      "id": "preserve_webhooks",
+      "priority": 3,
+      "pattern": "webhooks",
+      "scope": ["root"],
+      "description": "Preserve webhooks section (3.1 feature, not in 3.0)",
+      "action": {
+        "type": "preserve",
+        "note": "Webhooks supported in 3.1"
+      }
+    },
+    {
+      "id": "schema_composition_preserve",
+      "priority": 4,
+      "pattern": "oneOf|anyOf|allOf",
+      "scope": ["schema"],
+      "description": "Preserve schema composition structures (enhanced in 3.1 with JSON Schema 2020-12)",
+      "action": {
+        "type": "preserve",
+        "note": "Composition preserved as-is, JSON Schema 2020-12 provides enhanced support"
+      }
+    },
+    {
+      "id": "default_value_preserve",
+      "priority": 5,
+      "pattern": "default",
+      "scope": ["schema.properties"],
+      "description": "Preserve default values (3.1 allows broader types)",
+      "action": {
+        "type": "preserve",
+        "note": "Default values supported in 3.1"
+      }
+    },
+    {
+      "id": "examples_array_preserve",
+      "priority": 6,
+      "pattern": "examples",
+      "scope": ["schema", "operations"],
+      "description": "Preserve examples array (enhanced support in 3.1)",
+      "action": {
+        "type": "preserve",
+        "note": "Examples array with enhanced support in 3.1"
+      }
+    }
+  ],
+  "rules_31_to_30": [
+    {
+      "id": "type_array_to_nullable",
+      "priority": 1,
+      "pattern": "type",
+      "scope": ["schema.properties", "parameters"],
+      "description": "Convert type: [type, 'null'] to nullable: true (reverse of 3.0→3.1)",
+      "action": {
+        "type": "transform",
+        "source": {
+          "match": "type",
+          "is_array": true,
+          "contains": "null"
+        },
+        "target": {
+          "remove": ["null_from_type"],
+          "add": {
+            "nullable": true
+          }
+        }
+      }
+    },
+    {
+      "id": "discriminator_mapping_to_property",
+      "priority": 2,
+      "pattern": "discriminator",
+      "scope": ["schema"],
+      "description": "Convert discriminator.mapping to discriminator.propertyName (reverse conversion)",
+      "action": {
+        "type": "transform",
+        "source": {
+          "match": "discriminator.mapping"
+        },
+        "target": {
+          "remove": ["mapping"],
+          "use": "propertyName"
+        }
+      }
+    },
+    {
+      "id": "remove_webhooks",
+      "priority": 3,
+      "pattern": "webhooks",
+      "scope": ["root"],
+      "description": "Remove webhooks section (not supported in 3.0)",
+      "action": {
+        "type": "remove",
+        "warning": "Webhooks are not supported in OpenAPI 3.0.x and will be removed"
+      }
+    },
+    {
+      "id": "mutual_tls_removal",
+      "priority": 4,
+      "pattern": "mutualTLS",
+      "scope": ["security_schemes"],
+      "description": "Remove mutualTLS security scheme (3.1 only feature)",
+      "action": {
+        "type": "remove",
+        "warning": "mutualTLS security scheme is not supported in OpenAPI 3.0.x and will be removed"
+      }
+    },
+    {
+      "id": "remove_license_identifier",
+      "priority": 5,
+      "pattern": "license.identifier",
+      "scope": ["info"],
+      "description": "Remove license.identifier field (3.1 only, use license.name in 3.0)",
+      "action": {
+        "type": "transform",
+        "source": {
+          "match": "license.identifier"
+        },
+        "target": {
+          "move_to": "license.name"
+        }
+      }
+    },
+    {
+      "id": "simplify_examples",
+      "priority": 6,
+      "pattern": "examples",
+      "scope": ["schema", "operations"],
+      "description": "Simplify examples array if needed for 3.0 compatibility",
+      "action": {
+        "type": "preserve_or_simplify",
+        "note": "Examples preserved if compatible; simplified if using 3.1-only features"
+      }
+    },
+    {
+      "id": "json_schema_conditional_check",
+      "priority": 7,
+      "pattern": "if|then|else",
+      "scope": ["schema"],
+      "description": "Detect and warn on JSON Schema conditionals (3.1 only feature)",
+      "action": {
+        "type": "warn_or_fail",
+        "error": "JSON Schema conditionals (if/then/else) are not supported in OpenAPI 3.0.x",
+        "mode": "fail_in_strict"
+      }
+    }
+  ],
+  "transformation_helpers": {
+    "type_to_array": {
+      "description": "Convert single type to type array format",
+      "algorithm": "if type is string, convert to [type, 'null']; if array, add 'null' if not present"
+    },
+    "from_oneof_refs": {
+      "description": "Extract mapping from oneOf references for discriminator",
+      "algorithm": "iterate oneOf items, extract $ref values, create mapping from discriminator property"
+    },
+    "deterministic_ordering": {
+      "description": "Ensure rule application order is deterministic",
+      "algorithm": "sort rules by priority (ascending), then by id (alphabetically)"
+    }
+  },
+  "validation_rules": {
+    "post_conversion_30": {
+      "required_fields": ["openapi", "info", "paths"],
+      "version_check": "openapi must match 3.0.x pattern",
+      "no_webhooks": true,
+      "no_mutualTLS": true,
+      "no_json_schema_conditionals": true
+    },
+    "post_conversion_31": {
+      "required_fields": ["openapi", "info", "paths"],
+      "version_check": "openapi must match 3.1.x pattern",
+      "allows_webhooks": true,
+      "allows_mutualTLS": true,
+      "allows_json_schema_conditionals": true
+    }
+  },
+  "error_handling": {
+    "permissive_mode": {
+      "default": true,
+      "behavior": "Warn on unconvertible features, skip them, continue processing"
+    },
+    "strict_mode": {
+      "behavior": "Fail on any unconvertible structures"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "slice-oas"
+version = "0.1.0"
+description = "Decompose large OpenAPI specifications into individual, self-contained OAS files—one for each path and HTTP method combination"
+authors = ["jamil <jamil@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "slice_oas", from = "src"}]
+
+[tool.poetry.scripts]
+slice-oas = "slice_oas.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.0"
+pydantic-core = "^2.14"
+PyYAML = "^6.0"
+openapi-spec-validator = "^0.7"
+jsonschema = "^4.20"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4"
+pytest-cov = "^4.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-v --cov=src/slice_oas --cov-report=html"

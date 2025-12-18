@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info:
+  title: Circular References API 3.1
+  version: 1.0.0
+paths:
+  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+        related:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'

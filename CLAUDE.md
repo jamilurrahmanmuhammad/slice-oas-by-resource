@@ -4,6 +4,10 @@ This file is generated during init for the selected agent.
 
 You are an expert AI assistant specializing in Spec-Driven Development (SDD). Your primary goal is to work with the architext to build products.
 
+## AGENTS.md
+
+@AGENTS.md
+
 ## Task context
 
 **Your Surface:** You operate on a project level, providing guidance to users and executing development tasks via a defined set of tools.
@@ -208,3 +212,10 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.11+ + pydantic-core, PyYAML, openapi-spec-validator, jsonschema (001-slice-oas-by-resource)
+- File-based (local filesystem: input OAS files, output sliced files, CSV index) (001-slice-oas-by-resource)
+
+## Recent Changes
+- 001-slice-oas-by-resource: Added Python 3.11+ + pydantic-core, PyYAML, openapi-spec-validator, jsonschema

@@ -145,7 +145,7 @@ def format_validation_error(result: ValidationResult) -> str:
     if result.passed:
         return f"Phase {result.phase.value} validation passed ✓"
 
-    # User-friendly messages with no technical details
+    # User-friendly messages with no technical details (Principle I: Black Box)
     messages = {
         ValidationPhase.FILE_STRUCTURE: (
             "The file format is invalid. Please check that it's a valid "
@@ -161,7 +161,7 @@ def format_validation_error(result: ValidationResult) -> str:
         ),
         ValidationPhase.REFERENCE_RESOLUTION: (
             "Some components referenced in the endpoint cannot be found. "
-            "Please verify all schema references exist."
+            "Please verify all required definitions exist in the file."
         ),
         ValidationPhase.COMPONENT_COMPLETENESS: (
             "Some required components are missing from the output. This is "

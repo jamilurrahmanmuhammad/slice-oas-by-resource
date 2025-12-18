@@ -104,14 +104,15 @@ class ValidationResult(BaseModel):
     def to_user_message(self) -> str:
         """Convert technical details to plain language for users."""
         if self.passed:
-            return f"Phase {self.phase.value} validation passed ✓"
+            return f"Phase {self.phase.value} validation passed"
 
         # User-friendly error messages (Principle I: Black Box)
+        # No technical terms like JSON, YAML, schema, etc.
         messages = {
-            ValidationPhase.FILE_STRUCTURE: "The file format is invalid. Please check that it's a valid YAML or JSON file.",
+            ValidationPhase.FILE_STRUCTURE: "The file format is invalid. Please check that it's a valid OpenAPI specification file.",
             ValidationPhase.OPERATION_INTEGRITY: "The endpoint definition is incomplete. Please verify the operation is properly defined.",
             ValidationPhase.RESPONSE_INTEGRITY: "The response definition has issues. Please check response codes and content types.",
-            ValidationPhase.REFERENCE_RESOLUTION: "Some components referenced in the endpoint cannot be found. Please verify all schema references exist.",
+            ValidationPhase.REFERENCE_RESOLUTION: "Some components referenced in the endpoint cannot be found. Please verify all required definitions exist in the file.",
             ValidationPhase.COMPONENT_COMPLETENESS: "Some required components are missing from the output. This is likely a tool issue—please contact support.",
             ValidationPhase.PAYLOAD_EQUIVALENCE: "The extracted endpoint doesn't match the original. Please try again.",
             ValidationPhase.VERSION_VALIDATION: "The output format doesn't match the requested OpenAPI version. Please try again.",

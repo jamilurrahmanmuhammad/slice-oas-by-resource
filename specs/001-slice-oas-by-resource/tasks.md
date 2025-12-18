@@ -462,7 +462,7 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
 | Phase 4 | US2 (P2) | Batch processing & filtering | T035-T053 | ✅ COMPLETE (79/79 tests) |
 | Phase 5 | US3 (P3) | Version conversion (3.0↔3.1) | T054-T073 | ✅ COMPLETE (102/102 tests) |
 | Phase 6 | US4 (P4) | CSV governance | T074-T088 | ✅ COMPLETE (128/128 tests) |
-| Phase 7 | US5 (P1) | Black Box UX | T089-T101 | ⏳ PENDING |
+| Phase 7 | US5 (P1) | Black Box UX | T089-T101 | ✅ COMPLETE (153/153 tests) |
 | Phase 8 | Integration | Cross-cutting & optimization | T102-T115 | ⏳ PENDING |
 
 ---
@@ -477,24 +477,23 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
 4. **Phase 4** (US2 - P2): ✅ COMPLETE - blocks US4
 5. **Phase 5** (US3 - P3): ✅ COMPLETE - version conversion working
 6. **Phase 6** (US4 - P4): ✅ COMPLETE - CSV governance integrated
-7. **Phase 7** (US5 - P1): ⏳ **NEXT** - Black Box UX refinements
-8. **Phase 8** (Integration): ⏳ After all user stories complete
+7. **Phase 7** (US5 - P1): ✅ COMPLETE - Black Box UX validated
+8. **Phase 8** (Integration): ⏳ **NEXT** - Final integration & optimization
 
 ### Next Execution Plan
 
-**Immediate (Phase 7 - T089-T101)**:
+**Immediate (Phase 8 - T102-T115)**:
 ```
-T089-T093: UX refinements for CLI messages
-T094-T097: Help text and documentation
-T098-T101: Error message improvements
-[Then Phase 8 Integration]
+T102-T107: Cross-cutting integration tests
+T108-T111: Performance optimization
+T112-T115: Final acceptance testing
 ```
 
 ### Critical Path (Current)
 
-**Completed Path**: T001-T007 (Setup) → T008-T016 (Foundation) → T025-T034 (US1) → T035-T053 (US2) → T054-T073 (US3) → T074-T088 (US4) → ✅ **COMPLETE** (128/128 tests passing)
+**Completed Path**: T001-T007 (Setup) → T008-T016 (Foundation) → T025-T034 (US1) → T035-T053 (US2) → T054-T073 (US3) → T074-T088 (US4) → T089-T101 (US5) → ✅ **COMPLETE** (153/153 tests passing)
 
-**Current Path**: **T089-T101 (Phase 7 US5 Black Box UX)** → T102-T115 (Phase 8 Integration)
+**Current Path**: **T102-T115 (Phase 8 Integration)** → Final release
 
 ### MVP++ Scope Achieved
 
@@ -517,10 +516,16 @@ T098-T101: Error message improvements
 - ✅ Append mode for CSV (preserves existing entries)
 - ✅ 128 comprehensive tests
 
-**Next Increment**: Phase 7 (US5 - Black Box UX)
-- ⏳ UX refinements for non-technical users
-- ⏳ Improved error messages
-- ⏳ Help documentation
+**MVP+++** (Phases 1-7, US1-US5):
+- ✅ Black Box UX validation (no technical jargon)
+- ✅ Plain-language prompts and error messages
+- ✅ Comprehensive UX pattern validation (25 tests)
+- ✅ 153 comprehensive tests
+
+**Next Increment**: Phase 8 (Integration)
+- ⏳ Cross-cutting integration tests
+- ⏳ Performance optimization
+- ⏳ Final acceptance testing
 
 ---
 

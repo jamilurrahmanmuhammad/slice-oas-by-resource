@@ -216,6 +216,8 @@ class BatchExtractionRequest:
     output_format: str = "yaml"
     generate_csv: bool = True
     dry_run: bool = False
+    strict_mode: bool = False  # For version conversion: fail on unconvertible constructs
+    preserve_examples: bool = True  # For version conversion: keep all examples
 
 
 @dataclass
@@ -229,6 +231,29 @@ class BatchExtractionResult:
     csv_index_path: Optional[Path] = None
     failed_endpoints: List[Tuple[str, str, str]] = field(default_factory=list)
     output_files: List[Path] = field(default_factory=list)
+
+
+@dataclass
+class VersionConversionRequest:
+    """Request parameters for version conversion (3.0 ↔ 3.1)."""
+    source_version: str  # "3.0.x" or "3.1.x"
+    target_version: str  # "3.0.x" or "3.1.x"
+    transformation_rules: List[Dict[str, Any]] = field(default_factory=list)
+    strict_mode: bool = False  # Fail on unconvertible structures
+    preserve_examples: bool = True
+    input_document: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class ConversionResult:
+    """Result of version conversion."""
+    success: bool
+    source_version: str
+    target_version: str
+    converted_document: Optional[Dict[str, Any]] = None
+    warnings: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    elapsed_time: float = 0.0
 
 
 # Update forward references

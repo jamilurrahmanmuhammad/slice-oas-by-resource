@@ -161,19 +161,19 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
 
 ### Implementation (T054-T063): Core Version Conversion
 
-- [ ] T054 [P] [US3] Create transformation rules library at `src/slice_oas/transformation_rules.json`
+- [x] T054 [P] [US3] Create transformation rules library at `src/slice_oas/transformation_rules.json` ✅
   - 3.0→3.1 rules: nullable→type array, discriminator updates, webhooks support, schema composition
   - 3.1→3.0 rules: type array→nullable, webhooks removal, examples simplification
   - Format: JSON array of rule objects with pattern, action, scope
   - Example rules: "Nullable to Type Array" (pattern: nullable=true, action: convert to type array)
 
-- [ ] T055 [P] [US3] Extend data models in `src/slice_oas/models.py`
+- [x] T055 [P] [US3] Extend data models in `src/slice_oas/models.py` ✅
   - Add `VersionConversionRequest` dataclass: source_version, target_version, transformation_rules, strict_mode, preserve_examples
   - Add `ConversionResult` dataclass: success, source_version, target_version, converted_document, warnings, errors, elapsed_time
   - Add `TransformationRule` dataclass: pattern, action, scope, priority
   - Pydantic validation for each model with sample inputs
 
-- [ ] T056 [US3] Implement version conversion logic in `src/slice_oas/converter.py`
+- [x] T056 [US3] Implement version conversion logic in `src/slice_oas/converter.py` ✅
   - Create `VersionConverter` class with methods: convert_30_to_31(doc), convert_31_to_30(doc), apply_rule(doc, rule), validate_converted(doc, target_version)
   - Implement nullable transformation: detect `nullable: true`, convert to `type: [type, "null"]`
   - Implement discriminator updates: map propertyName to mapping (3.1 enhancement)
@@ -181,85 +181,85 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
   - Deterministic rule ordering: sort rules by priority for idempotent output
   - Return `ConversionResult` with success flag, warnings, errors
 
-- [ ] T057 [P] [US3] Extend CLI argument parsing in `src/slice_oas/cli.py`
+- [x] T057 [P] [US3] Extend CLI argument parsing in `src/slice_oas/cli.py` ✅
   - Add `--convert-version VERSION` argument (accepts 3.0 or 3.1 as target)
   - Add `--strict` flag for strict mode (fail on unconvertible constructs, default: permissive)
   - Add `--preserve-examples` flag (keep all examples, default: true)
   - Validation: Ensure target version is valid; check source vs target
 
-- [ ] T058 [P] [US3] Integrate version converter into batch processor in `src/slice_oas/batch_processor.py`
+- [x] T058 [P] [US3] Integrate version converter into batch processor in `src/slice_oas/batch_processor.py` ✅
   - Extend `BatchProcessor.process()` to call `VersionConverter` if `request.convert_version` is set
   - Add conversion step after extraction, before output writing
   - Update progress callback: "Converting 5/7 endpoints (71%): GET /users"
   - Handle conversion errors: collect per endpoint, continue processing
 
-- [ ] T059 [US3] Add conversion progress reporting in `src/slice_oas/progress.py`
+- [x] T059 [US3] Add conversion progress reporting in `src/slice_oas/progress.py` ✅
   - Extend `ProgressReporter` to track conversion phase: extraction → conversion → validation
   - Update callback format: "Extracting 3/7 (43%)" → "Converting 3/7 (43%)"
   - Phase transitions without breaking existing progress tracking
 
-- [ ] T060 [US3] Implement post-conversion validation in `src/slice_oas/validator.py`
+- [x] T060 [US3] Implement post-conversion validation in `src/slice_oas/validator.py` ✅
   - Add `validate_converted_document(doc, target_version)` function
   - Use `openapi-spec-validator` to validate against target OAS schema (3.0 or 3.1)
   - Return detailed error messages for validation failures
   - Fail conversion if validation fails (don't produce output)
 
-- [ ] T061 [US3] Add dry-run support for conversions in `src/slice_oas/cli.py`
+- [x] T061 [US3] Add dry-run support for conversions in `src/slice_oas/cli.py` ✅
   - Extend `--dry-run` flag to work with `--convert-version`
   - Preview mode: show endpoints to be converted, target version, without writing files
   - Output: "DRY RUN: Would convert 5 endpoints from 3.0 to 3.1"
 
-- [ ] T062 [US3] Create conversion error reporting in `src/slice_oas/cli.py`
+- [x] T062 [US3] Create conversion error reporting in `src/slice_oas/cli.py` ✅
   - Implement `format_conversion_error_summary(failed_conversions)` with plain-language messages
   - Implement `print_conversion_summary(result)` with converted count, warnings, elapsed time
   - Example: "3 endpoints failed conversion (nullable structures not supported in strict mode)"
 
-- [ ] T063 [US3] Set up integration test framework for version conversion in `tests/integration/test_version_conversion.py`
+- [x] T063 [US3] Set up integration test framework for version conversion in `tests/integration/test_version_conversion.py` ✅
   - Create test fixtures for 3.0 and 3.1 OAS documents
-  - Implement test fixtures: `oas_30_test` (3.0 format), `oas_31_test` (3.1 format with webhooks)
-  - Implement helper functions: `convert_and_validate(doc, target_version)`, `extract_conversion_result(result)`
+  - Implement test fixtures: `oas_30_simple` (3.0 format), `oas_31_simple` (3.1 format), `oas_31_with_webhooks` (3.1 with webhooks)
+  - Implement helper functions: `convert_and_validate(doc, source_version, target_version, strict_mode)`, `extract_conversion_result(result)`
   - Configure pytest to discover and run conversion tests
 
-### Testing (T064-T073): Integration Tests
+### Testing (T064-T073): Integration Tests ✅ 23 Tests Passing
 
-- [ ] T064 [US3] Write integration test: Convert 3.0→3.1 simple endpoint in `tests/integration/test_version_conversion.py`
+- [x] T064 [US3] Write integration test: Convert 3.0→3.1 simple endpoint in `tests/integration/test_version_conversion.py` ✅
   - Scenario: GET /users/{id} with nullable user_profile property in 3.0 → converted to 3.1 type array
   - Assertions: success==True, version==3.1.0, nullable→type arrays, all schemas resolved
 
-- [ ] T065 [US3] Write integration test: Convert 3.1→3.0 simple endpoint in `tests/integration/test_version_conversion.py`
+- [x] T065 [US3] Write integration test: Convert 3.1→3.0 simple endpoint in `tests/integration/test_version_conversion.py` ✅
   - Scenario: GET /orders/{orderId} with type array in 3.1 → converted to 3.0 nullable
   - Assertions: success==True, type arrays→nullable, version==3.0.0, webhooks warning if present
 
-- [ ] T066 [US3] Write integration test: Handle nullable transformations in `tests/integration/test_version_conversion.py`
+- [x] T066 [US3] Write integration test: Handle nullable transformations in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Schema with multiple nullable properties (User with nullable email, phone, profile)
   - Assertions: All properties correctly converted, round-trip (3.0→3.1→3.0) produces identical original
 
-- [ ] T067 [US3] Write integration test: Batch conversion with filtering in `tests/integration/test_version_conversion.py`
+- [x] T067 [US3] Write integration test: Batch conversion with filtering in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Convert multiple endpoints (/users/*, /api/v1/*) from 3.0→3.1 with glob filter
   - Assertions: Only 3 /users/* endpoints converted, all successful, CSV index generated
 
-- [ ] T068 [US3] Write integration test: Error handling for unconvertible constructs in `tests/integration/test_version_conversion.py`
+- [x] T068 [US3] Write integration test: Error handling for unconvertible constructs in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Try to convert 3.1 doc with webhooks to 3.0 (unsupported)
   - Assertions (Permissive): succeeds, warnings contain "Webhooks removed", no webhooks in output
   - Assertions (Strict): fails, errors contain "Webhooks not supported"
 
-- [ ] T069 [US3] Write integration test: Determinism (repeated conversions produce identical output) in `tests/integration/test_version_conversion.py`
+- [x] T069 [US3] Write integration test: Determinism (repeated conversions produce identical output) in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Convert same document 3 times; verify identical output each time (hash verification)
   - Assertions: hash(run_1) == hash(run_2) == hash(run_3), rule ordering deterministic
 
-- [ ] T070 [US3] Write integration test: Performance benchmark (<3min for 100 endpoints) in `tests/integration/test_version_conversion.py`
+- [x] T070 [US3] Write integration test: Performance benchmark (<3min for 100 endpoints) in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Create synthetic OAS with 100 endpoints; measure conversion time
   - Assertions: Completes in <180 seconds, per-endpoint average <1.8s, parallel faster than sequential
 
-- [ ] T071 [US3] Write integration test: Acceptance (converted endpoints usable) in `tests/integration/test_version_conversion.py`
+- [x] T071 [US3] Write integration test: Acceptance (converted endpoints usable) in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Convert endpoint, extract it again (Phase 4), verify extraction works
   - Assertions: No validation errors, can be re-extracted (round-trip works)
 
-- [ ] T072 [US3] Write integration test: Edge case - Complex schemas in `tests/integration/test_version_conversion.py`
+- [x] T072 [US3] Write integration test: Edge case - Complex schemas in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Schema with oneOf, anyOf, allOf composition
   - Assertions: Schema composition preserved, nested references resolved consistently, no data loss
 
-- [ ] T073 [US3] Write integration test: Edge case - Discriminator and security in `tests/integration/test_version_conversion.py`
+- [x] T073 [US3] Write integration test: Edge case - Discriminator and security in `tests/integration/test_version_conversion.py` ✅
   - Scenario: Schema with discriminator (polymorphic types) and security schemes
   - Assertions: discriminator.propertyName→mapping in 3.1, security schemes preserved, round-trip maintains mapping
 

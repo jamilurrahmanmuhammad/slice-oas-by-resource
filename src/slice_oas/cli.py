@@ -5,8 +5,9 @@ import sys
 import time
 from typing import Callable, Optional, List
 from pathlib import Path
-from slice_oas.models import ValidationResult, ValidationPhase, BatchExtractionRequest
+from slice_oas.models import ValidationResult, ValidationPhase, BatchExtractionRequest, VersionConversionRequest
 from slice_oas.exceptions import InvalidOASError, MissingReferenceError, ConversionError, ValidationError
+from slice_oas.converter import VersionConverter
 from slice_oas.parser import parse_oas, detect_oas_version
 from slice_oas.slicer import EndpointSlicer
 from slice_oas.validator import EndpointValidator
@@ -95,6 +96,28 @@ Examples:
         "--dry-run",
         action="store_true",
         help="Show what would be extracted without writing files (batch mode only)"
+    )
+
+    parser.add_argument(
+        "--convert-version",
+        type=str,
+        default=None,
+        choices=["3.0.x", "3.1.x"],
+        help="Convert extracted endpoints to target OpenAPI version (3.0.x or 3.1.x)",
+        metavar="VERSION"
+    )
+
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Strict mode: fail on unconvertible constructs (default: permissive with warnings)"
+    )
+
+    parser.add_argument(
+        "--preserve-examples",
+        action="store_true",
+        default=True,
+        help="Keep all examples in converted output (default: true)"
     )
 
     return parser.parse_args(args)
@@ -222,6 +245,69 @@ def print_batch_summary(result) -> None:
     sys.stdout.write(f"Extracted: {result.extracted_count}/{result.total_endpoints}\n")
     if result.failed_count > 0:
         sys.stdout.write(f"Failed: {result.failed_count}\n")
+    sys.stdout.write(f"Success rate: {result.validation_pass_rate * 100:.1f}%\n")
+    sys.stdout.write(f"Time: {result.elapsed_time:.1f}s\n")
+    sys.stdout.write(f"Output directory: {result.output_files[0].parent if result.output_files else 'N/A'}\n")
+    sys.stdout.write(f"Files created: {len(result.output_files)}\n")
+
+
+def format_conversion_error_summary(failed_endpoints: List[tuple]) -> str:
+    """Format conversion error summary for user (Principle I: Black Box).
+
+    Args:
+        failed_endpoints: List of (path, method, reason) tuples with conversion failures
+
+    Returns:
+        Plain-language summary without technical details
+    """
+    if not failed_endpoints:
+        return ""
+
+    lines = ["\nSome endpoints could not be converted:"]
+
+    # Count different types of errors for summary
+    conversion_errors = 0
+    validation_errors = 0
+    for _, _, reason in failed_endpoints:
+        if "conversion" in reason.lower():
+            conversion_errors += 1
+        elif "validation" in reason.lower():
+            validation_errors += 1
+
+    # Show first 5 errors with generic reason
+    for path, method, reason in failed_endpoints[:5]:
+        lines.append(f"  • {method.upper()} {path}")
+
+    if len(failed_endpoints) > 5:
+        lines.append(f"  ... and {len(failed_endpoints) - 5} more")
+
+    # Add summary advice
+    if conversion_errors > 0 and validation_errors == 0:
+        lines.append("\nTip: Some endpoints may use features not supported in the target version.")
+    elif validation_errors > 0 and conversion_errors == 0:
+        lines.append("\nTip: The converted endpoints failed validation. Try using --strict mode for details.")
+    elif conversion_errors > 0 and validation_errors > 0:
+        lines.append("\nTip: Both conversion and validation issues were found.")
+
+    lines.append("Try again or check the endpoint definitions.")
+    return "\n".join(lines)
+
+
+def print_conversion_summary(result, source_version: str, target_version: str) -> None:
+    """Print conversion summary with metrics (plain language, no technical details).
+
+    Args:
+        result: BatchExtractionResult from batch processor
+        source_version: Source OAS version (e.g., "3.0.x")
+        target_version: Target OAS version (e.g., "3.1.x")
+    """
+    sys.stdout.write("\n✓ Batch conversion complete!\n")
+    sys.stdout.write(f"Conversion: {source_version} → {target_version}\n")
+    sys.stdout.write(f"Processed: {result.extracted_count}/{result.total_endpoints}\n")
+
+    if result.failed_count > 0:
+        sys.stdout.write(f"Failed: {result.failed_count}\n")
+
     sys.stdout.write(f"Success rate: {result.validation_pass_rate * 100:.1f}%\n")
     sys.stdout.write(f"Time: {result.elapsed_time:.1f}s\n")
     sys.stdout.write(f"Output directory: {result.output_files[0].parent if result.output_files else 'N/A'}\n")
@@ -369,6 +455,16 @@ def _extract_batch(args, doc: dict, oas_version: str) -> None:
     # Show what will be extracted (dry-run preview)
     if args.dry_run:
         sys.stdout.write("\n[DRY RUN] Preview of extraction:\n")
+        if args.convert_version:
+            source_version = oas_version
+            target_version = args.convert_version
+            sys.stdout.write(f"  • Will convert endpoints from {source_version} to {target_version}\n")
+        if args.filter:
+            sys.stdout.write(f"  • Filter pattern: {args.filter}\n")
+        sys.stdout.write(f"  • Output format: {args.format.upper()}\n")
+
+    # Determine output version: convert_version takes precedence over output_version
+    output_version = args.convert_version if args.convert_version else args.output_version
 
     # Create batch request
     batch_request = BatchExtractionRequest(
@@ -376,11 +472,13 @@ def _extract_batch(args, doc: dict, oas_version: str) -> None:
         output_dir=Path(args.output_dir),
         filter_pattern=args.filter,
         filter_type="glob",  # Default to glob, could be extended later
-        output_version=args.output_version,
+        output_version=output_version,
         concurrency=concurrency,
         output_format=args.format,
         generate_csv=True,
         dry_run=args.dry_run,
+        strict_mode=getattr(args, 'strict', False),
+        preserve_examples=getattr(args, 'preserve_examples', True),
     )
 
     # Create progress callback
@@ -400,15 +498,60 @@ def _extract_batch(args, doc: dict, oas_version: str) -> None:
     # Report results
     if args.dry_run:
         sys.stdout.write(f"\n[DRY RUN] Would extract {result.extracted_count} endpoints:\n")
+        if args.convert_version:
+            source_version = oas_version
+            target_version = args.convert_version
+            sys.stdout.write(f"  • Conversion: {source_version} → {target_version}\n")
+        sys.stdout.write(f"  • Output format: {args.format.upper()}\n")
+        sys.stdout.write(f"  • Output directory: {args.output_dir}\n")
         if result.failed_endpoints:
-            sys.stdout.write(f"Warning: {len(result.failed_endpoints)} endpoints could not be extracted\n")
+            sys.stdout.write(f"  • Warning: {len(result.failed_endpoints)} endpoints could not be processed\n")
+        sys.stdout.write("\nNo files were written (dry-run mode)\n")
     else:
-        print_batch_summary(result)
+        # Use conversion summary if converting, otherwise use standard extraction summary
+        if args.convert_version:
+            source_version = oas_version
+            target_version = args.convert_version
+            print_conversion_summary(result, source_version, target_version)
 
-        if result.failed_endpoints:
-            error_summary = format_batch_error_summary(result.failed_endpoints)
-            if error_summary:
-                sys.stdout.write(error_summary + "\n")
+            if result.failed_endpoints:
+                error_summary = format_conversion_error_summary(result.failed_endpoints)
+                if error_summary:
+                    sys.stdout.write(error_summary + "\n")
+        else:
+            print_batch_summary(result)
+
+            if result.failed_endpoints:
+                error_summary = format_batch_error_summary(result.failed_endpoints)
+                if error_summary:
+                    sys.stdout.write(error_summary + "\n")
+
+
+def validate_conversion_args(args: argparse.Namespace, detected_version: str) -> Optional[str]:
+    """Validate version conversion arguments.
+
+    Args:
+        args: Parsed arguments
+        detected_version: Detected OAS version from input file
+
+    Returns:
+        Error message if validation fails, None otherwise
+    """
+    if not args.convert_version:
+        return None
+
+    # Map detected version to version family
+    version_family = "3.0.x" if detected_version.startswith("3.0.") else "3.1.x"
+
+    # Check if conversion is from same version to same version
+    if version_family == args.convert_version:
+        return f"Source and target versions are the same ({version_family}). No conversion needed."
+
+    # Validate target version is valid
+    if args.convert_version not in ["3.0.x", "3.1.x"]:
+        return f"Invalid target version: {args.convert_version}. Must be 3.0.x or 3.1.x."
+
+    return None
 
 
 def main():
@@ -461,6 +604,12 @@ def main():
             sys.exit(1)
 
         sys.stdout.write(f"Detected OpenAPI version: {oas_version}\n")
+
+        # Validate version conversion arguments if provided
+        conversion_error = validate_conversion_args(args, oas_version)
+        if conversion_error:
+            sys.stderr.write(f"Conversion error: {conversion_error}\n")
+            sys.exit(1)
 
         # Route to batch or single extraction
         if args.batch:

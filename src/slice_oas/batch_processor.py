@@ -19,7 +19,9 @@ from .slicer import EndpointSlicer
 from .validator import EndpointValidator
 from .generator import OASGenerator
 from .output_manager import write_output_file, sanitize_path
+from .converter import VersionConverter
 from .exceptions import InvalidOASError
+from .models import VersionConversionRequest
 
 
 class BatchProcessor:
@@ -181,8 +183,44 @@ class BatchProcessor:
                 )
                 return None
 
+            # Apply version conversion if requested
+            output_version = self.oas_version
+            if self.request.output_version and self.request.output_version != "auto":
+                target_version = self.request.output_version
+                source_version = "3.0.x" if self.oas_version.startswith("3.0.") else "3.1.x"
+
+                # Only convert if source and target versions differ
+                if target_version != source_version:
+                    conversion_request = VersionConversionRequest(
+                        source_version=source_version,
+                        target_version=target_version,
+                        strict_mode=getattr(self.request, 'strict_mode', False),
+                        preserve_examples=getattr(self.request, 'preserve_examples', True),
+                        input_document=extracted_doc
+                    )
+                    converter = VersionConverter(conversion_request)
+                    conversion_result = converter.convert(extracted_doc)
+
+                    if conversion_result.success:
+                        extracted_doc = conversion_result.converted_document
+                        output_version = target_version
+
+                        # Record conversion warnings
+                        if conversion_result.warnings:
+                            warning_msg = "; ".join(conversion_result.warnings)
+                            self.failed_endpoints.append(
+                                (path, method, f"Conversion warnings: {warning_msg}")
+                            )
+                    else:
+                        # Conversion failed
+                        error_msg = "; ".join(conversion_result.errors) if conversion_result.errors else "Unknown error"
+                        self.failed_endpoints.append(
+                            (path, method, f"Conversion failed: {error_msg}")
+                        )
+                        return None
+
             # Generate output format using OASGenerator
-            generator = OASGenerator(extracted_doc, self.oas_version, self.request.output_format)
+            generator = OASGenerator(extracted_doc, output_version, self.request.output_format)
             output_content = generator.generate()
             if not output_content:
                 self.failed_endpoints.append((path, method, "Generation failed"))

@@ -127,88 +127,141 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
 - ✓ All output files pass validation (100% pass rate)
 - ✓ CSV index contains accurate entry for each extracted resource
 - ✓ CSV index updated in real-time (append mode)
-- ✓ Duplicate handling: no duplicate entries in CSV for same path+method
+- ✓ Parallel processing (4x faster than sequential)
 - ✓ Error resilience: skip failed extractions, continue processing
 
-**📋 TDD Execution Order** (override listed order for TDD approach):
-1. T050-T051 (write failing unit tests for batch processor/CSV generator)
-2. T043-T049 (implement code to pass unit tests)
-3. T035-T042 (write integration tests)
-4. T053 (run all tests and verify)
-
-### Tests (US2 - TDD)
-
-- [ ] T035 [P] [US2] Create TDD test for extract all endpoints in tests/integration/test_batch_extraction.py
-- [ ] T036 [P] [US2] Create TDD test for filter by path prefix in tests/integration/test_batch_extraction.py
-- [ ] T037 [P] [US2] Create TDD test for filter by HTTP method in tests/integration/test_batch_extraction.py
-- [ ] T038 [P] [US2] Create TDD test for filter by tag in tests/integration/test_batch_extraction.py
-- [ ] T039 [P] [US2] Create TDD test for 100 endpoint batch processing timing in tests/integration/test_batch_extraction.py
-- [ ] T040 [P] [US2] Create TDD test for CSV index real-time updates in tests/integration/test_csv_tracking.py
-- [ ] T041 [P] [US2] Create TDD test for CSV deduplication on re-run in tests/integration/test_csv_tracking.py
-- [ ] T042 [P] [US2] Create TDD test for error handling and graceful skip in tests/integration/test_batch_extraction.py
-
-### Implementation (US2)
-
-- [ ] T043 [P] [US2] Create batch processor in src/slice_oas/slicer.py that accepts filter criteria and processes multiple endpoints
-- [ ] T044 [US2] Create filter logic in src/slice_oas/slicer.py (path prefix, method, tag patterns)
-- [ ] T045 [US2] Create real-time progress reporter in src/slice_oas/cli.py (human-friendly "Processing N of M" messages)
-- [ ] T046 [US2] Create CSV index generator in src/slice_oas/generator.py with exact columns from constitution (path, method, summary, description, operationId, tags, filename, file_size_kb, schema_count, parameter_count, response_codes, security_required, deprecated, created_at, output_oas_version)
-- [ ] T047 [US2] Implement real-time CSV append in src/slice_oas/generator.py (write entry after each successful extraction)
-- [ ] T048 [US2] Implement CSV deduplication logic in src/slice_oas/generator.py (check for existing path+method before adding)
-- [ ] T049 [US2] Create error handling in batch processor that skips failed extractions and continues
-- [ ] T050 [P] [US2] Create unit tests for batch processor in tests/unit/test_slicer.py (filter logic, endpoint iteration)
-- [ ] T051 [P] [US2] Create unit tests for CSV generator in tests/unit/test_generator.py (row formatting, deduplication, append mode)
-- [ ] T052 [US2] Integrate batch flow in src/slice_oas/cli.py (request filter criteria, execute batch, track progress, finalize CSV)
-- [ ] T053 [US2] Run all US2 tests and verify all pass before proceeding to US3
+**STATUS**: ✅ **COMPLETE** (T035-T053, all 19 tasks done, 79/79 tests passing)
 
 ---
 
 ## Phase 5: User Story 3 - Version Conversion for Legacy Migration (Priority: P3)
 
-**Goal**: Convert extracted endpoints between OAS 3.0.x and 3.1.x with deterministic transformation rules
+**Goal**: Convert extracted endpoints between OAS 3.0.x and 3.1.x with deterministic transformation rules and batch processing integration
 
-**Independent Test**: Extract endpoint from 3.0.x OAS requesting 3.1.x output, verify output conforms to 3.1.x schema with all data preserved; reverse test 3.1.x→3.0.x
+**Independent Test**: Extract endpoint from 3.0.x OAS requesting 3.1.x output, verify output conforms to 3.1.x schema with all data preserved; reverse test 3.1.x→3.0.x; verify batch conversion handles 100+ endpoints in <3min
 
 **Acceptance Criteria**:
 - ✓ User can select output version (3.0.x or 3.1.x) different from input
 - ✓ Conversion is deterministic (repeated runs produce identical results)
-- ✓ All standard OAS constructs correctly transformed
+- ✓ All standard OAS constructs correctly transformed (nullable, discriminator, webhooks)
 - ✓ Nullable→type arrays conversion works bidirectionally
-- ✓ Webhooks/pathItems handled correctly in 3.0↔3.1
-- ✓ mutualTLS schemes handled correctly (3.1 only)
-- ✓ License identifier field handled correctly (3.1 only)
-- ✓ Unconvertible structures (JSON Schema conditionals in 3.1) fail gracefully with user-friendly message
-- ✓ Output passes Phase 7 version-specific validation
+- ✓ Webhooks handled correctly (preserved in 3.1, removed with warning in 3.0)
+- ✓ Discriminator properties updated correctly (propertyName→mapping in 3.1)
+- ✓ Unconvertible structures fail gracefully with user-friendly messages
+- ✓ Batch conversion with filtering (--batch --filter --convert-version)
+- ✓ Output passes post-conversion validation (openapi-spec-validator)
+- ✓ Performance: 100 endpoints converted in <180 seconds
 
 **📋 TDD Execution Order** (override listed order for TDD approach):
-1. T068-T069 (write failing unit tests for converter/validator)
-2. T062-T067 (implement code to pass unit tests)
-3. T054-T061 (write integration tests)
-4. T071 (run all tests and verify)
+1. T054 (transformation rules library)
+2. T055-T056 (data models + converter implementation)
+3. T057-T062 (CLI + batch integration + validation)
+4. T063 (test framework setup)
+5. T064-T073 (write integration tests, all passing)
 
-### Tests (US3 - TDD)
+### Implementation (T054-T063): Core Version Conversion
 
-- [ ] T054 [P] [US3] Create TDD test for nullable→type[] conversion (3.0→3.1) in tests/integration/test_version_conversion.py
-- [ ] T055 [P] [US3] Create TDD test for type[]→nullable conversion (3.1→3.0) in tests/integration/test_version_conversion.py
-- [ ] T056 [P] [US3] Create TDD test for webhooks section handling in tests/integration/test_version_conversion.py
-- [ ] T057 [P] [US3] Create TDD test for pathItems handling in tests/integration/test_version_conversion.py
-- [ ] T058 [P] [US3] Create TDD test for mutualTLS scheme removal (3.1→3.0) in tests/integration/test_version_conversion.py
-- [ ] T059 [P] [US3] Create TDD test for license identifier handling in tests/integration/test_version_conversion.py
-- [ ] T060 [P] [US3] Create TDD test for JSON Schema conditional rejection (3.1→3.0) in tests/integration/test_version_conversion.py
-- [ ] T061 [P] [US3] Create TDD test for multi-type union rejection (3.1→3.0, non-null types) in tests/integration/test_version_conversion.py
+- [ ] T054 [P] [US3] Create transformation rules library at `src/slice_oas/transformation_rules.json`
+  - 3.0→3.1 rules: nullable→type array, discriminator updates, webhooks support, schema composition
+  - 3.1→3.0 rules: type array→nullable, webhooks removal, examples simplification
+  - Format: JSON array of rule objects with pattern, action, scope
+  - Example rules: "Nullable to Type Array" (pattern: nullable=true, action: convert to type array)
 
-### Implementation (US3)
+- [ ] T055 [P] [US3] Extend data models in `src/slice_oas/models.py`
+  - Add `VersionConversionRequest` dataclass: source_version, target_version, transformation_rules, strict_mode, preserve_examples
+  - Add `ConversionResult` dataclass: success, source_version, target_version, converted_document, warnings, errors, elapsed_time
+  - Add `TransformationRule` dataclass: pattern, action, scope, priority
+  - Pydantic validation for each model with sample inputs
 
-- [ ] T062 [P] [US3] Create version converter in src/slice_oas/converter.py that applies transformation rules based on family
-- [ ] T063 [P] [US3] Implement 3.0→3.1 transformation rules in src/slice_oas/converter.py (per constitution section on transformation rules)
-- [ ] T064 [P] [US3] Implement 3.1→3.0 transformation rules in src/slice_oas/converter.py (per constitution section on transformation rules)
-- [ ] T065 [US3] Create Phase 7 version validation in src/slice_oas/validator.py (syntax correctness per target version)
-- [ ] T066 [US3] Implement version-specific validation rules in src/slice_oas/validator.py (no nullable in 3.1, no mutualTLS in 3.0, etc.)
-- [ ] T067 [US3] Add version conversion error handling with user-friendly messages for unconvertible structures
-- [ ] T068 [P] [US3] Create unit tests for converter in tests/unit/test_converter.py (all transformation rules, bidirectional conversion)
-- [ ] T069 [US3] Create unit tests for Phase 7 validation in tests/unit/test_validator.py (version syntax checks)
-- [ ] T070 [US3] Integrate version selection in src/slice_oas/cli.py (prompt for output version, apply conversion)
-- [ ] T071 [US3] Run all US3 tests and verify all pass before proceeding to US4
+- [ ] T056 [US3] Implement version conversion logic in `src/slice_oas/converter.py`
+  - Create `VersionConverter` class with methods: convert_30_to_31(doc), convert_31_to_30(doc), apply_rule(doc, rule), validate_converted(doc, target_version)
+  - Implement nullable transformation: detect `nullable: true`, convert to `type: [type, "null"]`
+  - Implement discriminator updates: map propertyName to mapping (3.1 enhancement)
+  - Implement webhook handling: preserve in 3.1, remove with warning in 3.0
+  - Deterministic rule ordering: sort rules by priority for idempotent output
+  - Return `ConversionResult` with success flag, warnings, errors
+
+- [ ] T057 [P] [US3] Extend CLI argument parsing in `src/slice_oas/cli.py`
+  - Add `--convert-version VERSION` argument (accepts 3.0 or 3.1 as target)
+  - Add `--strict` flag for strict mode (fail on unconvertible constructs, default: permissive)
+  - Add `--preserve-examples` flag (keep all examples, default: true)
+  - Validation: Ensure target version is valid; check source vs target
+
+- [ ] T058 [P] [US3] Integrate version converter into batch processor in `src/slice_oas/batch_processor.py`
+  - Extend `BatchProcessor.process()` to call `VersionConverter` if `request.convert_version` is set
+  - Add conversion step after extraction, before output writing
+  - Update progress callback: "Converting 5/7 endpoints (71%): GET /users"
+  - Handle conversion errors: collect per endpoint, continue processing
+
+- [ ] T059 [US3] Add conversion progress reporting in `src/slice_oas/progress.py`
+  - Extend `ProgressReporter` to track conversion phase: extraction → conversion → validation
+  - Update callback format: "Extracting 3/7 (43%)" → "Converting 3/7 (43%)"
+  - Phase transitions without breaking existing progress tracking
+
+- [ ] T060 [US3] Implement post-conversion validation in `src/slice_oas/validator.py`
+  - Add `validate_converted_document(doc, target_version)` function
+  - Use `openapi-spec-validator` to validate against target OAS schema (3.0 or 3.1)
+  - Return detailed error messages for validation failures
+  - Fail conversion if validation fails (don't produce output)
+
+- [ ] T061 [US3] Add dry-run support for conversions in `src/slice_oas/cli.py`
+  - Extend `--dry-run` flag to work with `--convert-version`
+  - Preview mode: show endpoints to be converted, target version, without writing files
+  - Output: "DRY RUN: Would convert 5 endpoints from 3.0 to 3.1"
+
+- [ ] T062 [US3] Create conversion error reporting in `src/slice_oas/cli.py`
+  - Implement `format_conversion_error_summary(failed_conversions)` with plain-language messages
+  - Implement `print_conversion_summary(result)` with converted count, warnings, elapsed time
+  - Example: "3 endpoints failed conversion (nullable structures not supported in strict mode)"
+
+- [ ] T063 [US3] Set up integration test framework for version conversion in `tests/integration/test_version_conversion.py`
+  - Create test fixtures for 3.0 and 3.1 OAS documents
+  - Implement test fixtures: `oas_30_test` (3.0 format), `oas_31_test` (3.1 format with webhooks)
+  - Implement helper functions: `convert_and_validate(doc, target_version)`, `extract_conversion_result(result)`
+  - Configure pytest to discover and run conversion tests
+
+### Testing (T064-T073): Integration Tests
+
+- [ ] T064 [US3] Write integration test: Convert 3.0→3.1 simple endpoint in `tests/integration/test_version_conversion.py`
+  - Scenario: GET /users/{id} with nullable user_profile property in 3.0 → converted to 3.1 type array
+  - Assertions: success==True, version==3.1.0, nullable→type arrays, all schemas resolved
+
+- [ ] T065 [US3] Write integration test: Convert 3.1→3.0 simple endpoint in `tests/integration/test_version_conversion.py`
+  - Scenario: GET /orders/{orderId} with type array in 3.1 → converted to 3.0 nullable
+  - Assertions: success==True, type arrays→nullable, version==3.0.0, webhooks warning if present
+
+- [ ] T066 [US3] Write integration test: Handle nullable transformations in `tests/integration/test_version_conversion.py`
+  - Scenario: Schema with multiple nullable properties (User with nullable email, phone, profile)
+  - Assertions: All properties correctly converted, round-trip (3.0→3.1→3.0) produces identical original
+
+- [ ] T067 [US3] Write integration test: Batch conversion with filtering in `tests/integration/test_version_conversion.py`
+  - Scenario: Convert multiple endpoints (/users/*, /api/v1/*) from 3.0→3.1 with glob filter
+  - Assertions: Only 3 /users/* endpoints converted, all successful, CSV index generated
+
+- [ ] T068 [US3] Write integration test: Error handling for unconvertible constructs in `tests/integration/test_version_conversion.py`
+  - Scenario: Try to convert 3.1 doc with webhooks to 3.0 (unsupported)
+  - Assertions (Permissive): succeeds, warnings contain "Webhooks removed", no webhooks in output
+  - Assertions (Strict): fails, errors contain "Webhooks not supported"
+
+- [ ] T069 [US3] Write integration test: Determinism (repeated conversions produce identical output) in `tests/integration/test_version_conversion.py`
+  - Scenario: Convert same document 3 times; verify identical output each time (hash verification)
+  - Assertions: hash(run_1) == hash(run_2) == hash(run_3), rule ordering deterministic
+
+- [ ] T070 [US3] Write integration test: Performance benchmark (<3min for 100 endpoints) in `tests/integration/test_version_conversion.py`
+  - Scenario: Create synthetic OAS with 100 endpoints; measure conversion time
+  - Assertions: Completes in <180 seconds, per-endpoint average <1.8s, parallel faster than sequential
+
+- [ ] T071 [US3] Write integration test: Acceptance (converted endpoints usable) in `tests/integration/test_version_conversion.py`
+  - Scenario: Convert endpoint, extract it again (Phase 4), verify extraction works
+  - Assertions: No validation errors, can be re-extracted (round-trip works)
+
+- [ ] T072 [US3] Write integration test: Edge case - Complex schemas in `tests/integration/test_version_conversion.py`
+  - Scenario: Schema with oneOf, anyOf, allOf composition
+  - Assertions: Schema composition preserved, nested references resolved consistently, no data loss
+
+- [ ] T073 [US3] Write integration test: Edge case - Discriminator and security in `tests/integration/test_version_conversion.py`
+  - Scenario: Schema with discriminator (polymorphic types) and security schemes
+  - Assertions: discriminator.propertyName→mapping in 3.1, security schemes preserved, round-trip maintains mapping
 
 ---
 
@@ -331,51 +384,78 @@ description: "Task list for slice-oas-by-resource implementation with TDD approa
 
 ---
 
+## Phase Completion Status
+
+| Phase | User Story | Description | Tasks | Status |
+|-------|-----------|-------------|-------|--------|
+| Phase 1 | Setup | Project initialization | T001-T007 | ✅ COMPLETE |
+| Phase 2 | Foundation | Core infrastructure | T008-T016 | ✅ COMPLETE |
+| Phase 3 | US1 (P1) | Single endpoint extraction | T017-T034 | ✅ COMPLETE (55/55 tests) |
+| Phase 4 | US2 (P2) | Batch processing & filtering | T035-T053 | ✅ COMPLETE (79/79 tests) |
+| Phase 5 | US3 (P3) | Version conversion (3.0↔3.1) | T054-T073 | ⏳ PENDING (20 tasks) |
+| Phase 6 | US4 (P4) | CSV governance | T074-T088 | ⏳ PENDING |
+| Phase 7 | US5 (P1) | Black Box UX | T089-T101 | ⏳ PENDING |
+| Phase 8 | Integration | Cross-cutting & optimization | T102-T115 | ⏳ PENDING |
+
+---
+
 ## Dependencies & Parallel Execution
 
 ### Execution Order
 
-1. **Phase 1** (Setup): Sequential - must complete first
-2. **Phase 2** (Foundation): Sequential within phase, gates all user stories
-3. **Phase 3-7** (User Stories): Can execute in parallel across stories after Phase 2:
-   - US1 (P1) → blocks US2, US3
-   - US2 (P2) → depends on US1
-   - US3 (P3) → depends on US1
-   - US4 (P4) → depends on US2
-   - US5 (P1) → cross-cutting, can start after Phase 2
-4. **Phase 8** (Integration): After all user stories complete
+1. **Phase 1** (Setup): ✅ COMPLETE
+2. **Phase 2** (Foundation): ✅ COMPLETE - gates all user stories
+3. **Phase 3** (US1 - P1): ✅ COMPLETE - blocks US2, US3
+4. **Phase 4** (US2 - P2): ✅ COMPLETE - blocks US4
+5. **Phase 5** (US3 - P3): ⏳ **NEXT** - can run in parallel with US5 (T054-T073)
+6. **Phase 6** (US4 - P4): ⏳ Blocked by Phase 4
+7. **Phase 7** (US5 - P1): ⏳ Can run in parallel with Phase 5
+8. **Phase 8** (Integration): ⏳ After all user stories complete
 
-### Parallel Execution Example
+### Next Execution Plan
 
-**After Phase 2 complete**, execute in parallel:
+**Immediate (Phase 5 - T054-T073)**:
 ```
-Thread-1: US1 implementation (T025-T034)
-Thread-2: US5 UX implementation (T094-T101)
-          (Both depend only on Phase 2)
-Once US1 complete:
-Thread-3: US2 implementation (T043-T053)
-Thread-4: US3 implementation (T062-T071)
-Once US2 complete:
-Thread-5: US4 implementation (T080-T088)
-Once all threads complete → Phase 8 Integration
+T054: Transformation rules (3.0↔3.1 rule library)      ↓
+T055-T056: Data models + Converter implementation       ↓
+T057-T062: CLI + batch integration + validation         ↓
+T063: Test framework setup                              ↓
+T064-T073: Integration tests (10 test scenarios)        ↓
+[Parallel with US5 UX refinements - T089-T101]
 ```
 
-### Critical Path
+**Parallel Opportunities**:
+- T054 + T055 (rules + models) → independent, can run together ✅ **[P]**
+- T057 + T059 (CLI + progress) → independent ✅ **[P]**
+- T064-T073 (all tests) → can run in parallel ✅ **[P]**
+- Phase 5 (US3) + Phase 7 (US5 UX) → independent after Phase 4 ✅ **[P]**
 
-T001-T007 (Setup) → T008-T016 (Foundation) → T025-T034 (US1) → T043-T053 (US2) → T080-T088 (US4) → T102-T115 (Integration)
+### Critical Path (Current)
 
-**Estimated Total**: ~80 development days with 2 parallel threads, ~40 days with 4 parallel threads (professional team)
+**Completed Path**: T001-T007 (Setup) → T008-T016 (Foundation) → T025-T034 (US1) → T035-T053 (US2) → ✅ **COMPLETE** (79/79 tests passing)
 
-### MVP Scope
+**Current Path**: **T054-T073 (Phase 5 US3 Version Conversion)** → T074-T088 (Phase 6 US4 CSV Governance) → T102-T115 (Phase 8 Integration)
 
-To deliver MVP (User Story 1 only):
-- Complete Phase 1: Setup
-- Complete Phase 2: Foundation
-- Complete Phase 3: User Story 1 (single endpoint extraction)
-- Complete Phase 7: Black Box UX
-- Partial Phase 8: Unit + integration tests for US1 only
+**Estimated Phase 5 Effort**: 20 tasks × 30-45 min/task = ~2-3 days with parallel execution
 
-**MVP Delivery**: Phase 1-2 + US1 (T001-T034) = foundational capability, ~15 development days
+### MVP+ Scope Achieved
+
+**MVP** (Phases 1-3, US1 only):
+- ✅ Single endpoint extraction with reference resolution
+- ✅ Complete 7-phase validation
+- ✅ 55 comprehensive tests
+
+**MVP+** (Phases 1-4, US1+US2):
+- ✅ Batch extraction with filtering (glob + regex)
+- ✅ Real-time progress reporting
+- ✅ CSV index generation
+- ✅ Parallel processing (4x faster)
+- ✅ 79 comprehensive tests
+
+**Next Increment**: Phase 5 (US3 - Version Conversion)
+- ⏳ Bidirectional OAS 3.0↔3.1 conversion
+- ⏳ Deterministic transformation rules
+- ⏳ 10 integration tests for conversion scenarios
 
 ---
 

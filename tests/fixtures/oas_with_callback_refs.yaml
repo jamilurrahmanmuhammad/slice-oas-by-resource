@@ -1,0 +1,161 @@
+openapi: "3.0.3"
+info:
+  title: "Callback Reference Test API"
+  version: "1.0.0"
+  description: "Test fixture for callback $ref resolution"
+paths:
+  /webhooks:
+    post:
+      summary: "Register a webhook"
+      operationId: registerWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRegistration"
+      responses:
+        "201":
+          description: "Webhook registered"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+      callbacks:
+        onEvent:
+          $ref: "#/components/callbacks/onEvent"
+  /subscriptions:
+    post:
+      summary: "Create subscription with payment callback"
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionRequest"
+      responses:
+        "201":
+          description: "Subscription created"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+      callbacks:
+        onPaymentSuccess:
+          $ref: "#/components/callbacks/onPaymentSuccess"
+        onPaymentFailure:
+          $ref: "#/components/callbacks/onPaymentFailure"
+components:
+  callbacks:
+    onEvent:
+      "{$request.body#/callbackUrl}":
+        post:
+          summary: "Webhook event notification"
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/WebhookEvent"
+          responses:
+            "200":
+              description: "Event received"
+    onPaymentSuccess:
+      "{$request.body#/successUrl}":
+        post:
+          summary: "Payment success notification"
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/PaymentResult"
+          responses:
+            "200":
+              description: "Acknowledged"
+    onPaymentFailure:
+      "{$request.body#/failureUrl}":
+        post:
+          summary: "Payment failure notification"
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/PaymentResult"
+          responses:
+            "200":
+              description: "Acknowledged"
+  schemas:
+    WebhookRegistration:
+      type: object
+      required:
+        - callbackUrl
+        - events
+      properties:
+        callbackUrl:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+        callbackUrl:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+    WebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          type: object
+    SubscriptionRequest:
+      type: object
+      required:
+        - planId
+        - successUrl
+        - failureUrl
+      properties:
+        planId:
+          type: string
+        successUrl:
+          type: string
+          format: uri
+        failureUrl:
+          type: string
+          format: uri
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        planId:
+          type: string
+        status:
+          type: string
+    PaymentResult:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        status:
+          type: string
+          enum: [success, failed]
+        amount:
+          type: number
+        currency:
+          type: string

@@ -23,6 +23,58 @@ class ReferenceType(str, Enum):
     RESPONSE = "response"
 
 
+class ComponentType(str, Enum):
+    """All 8 OpenAPI 3.x component types.
+
+    Per OpenAPI 3.x specification, these are the valid component types
+    that can be referenced via $ref: "#/components/{type}/{name}".
+    """
+    SCHEMAS = "schemas"
+    HEADERS = "headers"
+    PARAMETERS = "parameters"
+    RESPONSES = "responses"
+    REQUEST_BODIES = "requestBodies"
+    SECURITY_SCHEMES = "securitySchemes"
+    LINKS = "links"
+    CALLBACKS = "callbacks"
+
+    @classmethod
+    def from_ref_path(cls, ref_path: str) -> Optional['ComponentType']:
+        """Parse component type from a $ref path.
+
+        Args:
+            ref_path: Reference path (e.g., "#/components/schemas/User")
+
+        Returns:
+            ComponentType if valid, None otherwise
+        """
+        if not ref_path.startswith("#/components/"):
+            return None
+        parts = ref_path.split("/")
+        if len(parts) < 4:
+            return None
+        type_str = parts[2]
+        try:
+            return cls(type_str)
+        except ValueError:
+            return None
+
+    @property
+    def python_attr_name(self) -> str:
+        """Get the Python attribute name (snake_case)."""
+        mapping = {
+            ComponentType.SCHEMAS: "schemas",
+            ComponentType.HEADERS: "headers",
+            ComponentType.PARAMETERS: "parameters",
+            ComponentType.RESPONSES: "responses",
+            ComponentType.REQUEST_BODIES: "request_bodies",
+            ComponentType.SECURITY_SCHEMES: "security_schemes",
+            ComponentType.LINKS: "links",
+            ComponentType.CALLBACKS: "callbacks",
+        }
+        return mapping[self]
+
+
 class ValidationPhase(int, Enum):
     """7-phase validation checkpoint."""
     FILE_STRUCTURE = 1
@@ -90,6 +142,157 @@ class ResolvedComponent(BaseModel):
                 dependencies.append(ref.target)
                 dependencies.extend(ref.target.collect_dependencies())
         return dependencies
+
+
+@dataclass
+class ComponentReference:
+    """Represents a parsed $ref pointer to an OpenAPI component.
+
+    Attributes:
+        ref_string: Original $ref value (e.g., "#/components/schemas/User")
+        component_type: Type of component (one of 8 valid types)
+        component_name: Name of the component
+        resolved: Whether successfully resolved
+    """
+    ref_string: str
+    component_type: ComponentType
+    component_name: str
+    resolved: bool = False
+
+    @classmethod
+    def from_ref_string(cls, ref_string: str) -> Optional['ComponentReference']:
+        """Parse a $ref string into a ComponentReference.
+
+        Args:
+            ref_string: Reference string (e.g., "#/components/headers/X-Rate-Limit")
+
+        Returns:
+            ComponentReference if valid internal component ref, None otherwise
+        """
+        if not ref_string.startswith("#/components/"):
+            return None
+
+        parts = ref_string.split("/")
+        if len(parts) < 4:
+            return None
+
+        type_str = parts[2]
+        name = "/".join(parts[3:])  # Handle names with slashes
+
+        component_type = ComponentType.from_ref_path(ref_string)
+        if component_type is None:
+            return None
+
+        return cls(
+            ref_string=ref_string,
+            component_type=component_type,
+            component_name=name,
+            resolved=False
+        )
+
+
+@dataclass
+class ResolvedComponents:
+    """Collection of all resolved components organized by type.
+
+    Tracks resolved components across all 8 OpenAPI component types,
+    enabling the slicer to copy all dependencies to the output.
+    """
+    schemas: Dict[str, Any] = field(default_factory=dict)
+    headers: Dict[str, Any] = field(default_factory=dict)
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    responses: Dict[str, Any] = field(default_factory=dict)
+    request_bodies: Dict[str, Any] = field(default_factory=dict)
+    security_schemes: Dict[str, Any] = field(default_factory=dict)
+    links: Dict[str, Any] = field(default_factory=dict)
+    callbacks: Dict[str, Any] = field(default_factory=dict)
+
+    def add(self, component_type: ComponentType, name: str, definition: Dict[str, Any]) -> None:
+        """Add a resolved component.
+
+        Args:
+            component_type: Type of component
+            name: Component name
+            definition: Component definition (deepcopied)
+        """
+        attr_name = component_type.python_attr_name
+        getattr(self, attr_name)[name] = definition
+
+    def has(self, component_type: ComponentType, name: str) -> bool:
+        """Check if component already resolved.
+
+        Args:
+            component_type: Type of component
+            name: Component name
+
+        Returns:
+            True if component exists in resolved set
+        """
+        attr_name = component_type.python_attr_name
+        return name in getattr(self, attr_name)
+
+    def get(self, component_type: ComponentType, name: str) -> Optional[Dict[str, Any]]:
+        """Retrieve resolved component.
+
+        Args:
+            component_type: Type of component
+            name: Component name
+
+        Returns:
+            Component definition or None if not found
+        """
+        attr_name = component_type.python_attr_name
+        return getattr(self, attr_name).get(name)
+
+    def to_components_dict(self) -> Dict[str, Dict[str, Any]]:
+        """Convert to OpenAPI components structure.
+
+        Returns:
+            Dict suitable for output["components"], only including non-empty sections
+        """
+        result = {}
+        # Map Python attr names to OAS keys
+        mapping = [
+            ("schemas", "schemas"),
+            ("headers", "headers"),
+            ("parameters", "parameters"),
+            ("responses", "responses"),
+            ("request_bodies", "requestBodies"),
+            ("security_schemes", "securitySchemes"),
+            ("links", "links"),
+            ("callbacks", "callbacks"),
+        ]
+        for attr_name, oas_key in mapping:
+            components = getattr(self, attr_name)
+            if components:
+                result[oas_key] = components
+        return result
+
+    def is_empty(self) -> bool:
+        """Check if no components resolved."""
+        return not any([
+            self.schemas,
+            self.headers,
+            self.parameters,
+            self.responses,
+            self.request_bodies,
+            self.security_schemes,
+            self.links,
+            self.callbacks,
+        ])
+
+    def total_count(self) -> int:
+        """Total number of resolved components across all types."""
+        return sum([
+            len(self.schemas),
+            len(self.headers),
+            len(self.parameters),
+            len(self.responses),
+            len(self.request_bodies),
+            len(self.security_schemes),
+            len(self.links),
+            len(self.callbacks),
+        ])
 
 
 class ValidationResult(BaseModel):

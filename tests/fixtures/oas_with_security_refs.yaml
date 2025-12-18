@@ -1,0 +1,115 @@
+openapi: "3.0.3"
+info:
+  title: "Security Scheme Reference Test API"
+  version: "1.0.0"
+  description: "Test fixture for security scheme resolution"
+security:
+  - api_key: []
+paths:
+  /public/health:
+    get:
+      summary: "Health check (no security)"
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: "Service healthy"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /admin/users:
+    get:
+      summary: "List all users (admin only)"
+      operationId: adminListUsers
+      security:
+        - bearer_auth: []
+        - api_key: []
+      responses:
+        "200":
+          description: "Users list"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          description: "Unauthorized"
+  /oauth/profile:
+    get:
+      summary: "Get user profile via OAuth"
+      operationId: getOAuthProfile
+      security:
+        - oauth2:
+            - read:profile
+            - read:email
+      responses:
+        "200":
+          description: "Profile data"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+  /data:
+    get:
+      summary: "Get data (uses global security)"
+      operationId: getData
+      responses:
+        "200":
+          description: "Data response"
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  securitySchemes:
+    api_key:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "API key for authentication"
+    bearer_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT bearer token"
+    oauth2:
+      type: oauth2
+      description: "OAuth 2.0 authentication"
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.com/authorize
+          tokenUrl: https://auth.example.com/token
+          scopes:
+            read:profile: "Read user profile"
+            read:email: "Read user email"
+            write:profile: "Modify user profile"
+    openid_connect:
+      type: openIdConnect
+      openIdConnectUrl: https://auth.example.com/.well-known/openid-configuration
+      description: "OpenID Connect authentication"
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum: [user, admin, superadmin]
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string

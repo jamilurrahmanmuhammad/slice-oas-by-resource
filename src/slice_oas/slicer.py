@@ -1,15 +1,22 @@
 """Endpoint slicer for extracting single resources with dependencies.
 
 Orchestrates reference resolution, validation, and output generation.
+Supports all 8 OpenAPI component types per Constitutional Requirement III.
 """
 
 from typing import Dict, Any, Set
 from copy import deepcopy
 from slice_oas.resolver import ReferenceResolver
+from slice_oas.models import ResolvedComponents
 
 
 class EndpointSlicer:
-    """Extracts a single endpoint with all resolved dependencies."""
+    """Extracts a single endpoint with all resolved dependencies.
+
+    Resolves and includes all 8 OpenAPI component types:
+    schemas, headers, parameters, responses, requestBodies,
+    securitySchemes, links, callbacks.
+    """
 
     def __init__(self, doc: Dict[str, Any], version: str):
         """Initialize slicer with OAS document and version.
@@ -30,7 +37,8 @@ class EndpointSlicer:
             method: HTTP method (GET, POST, etc.)
 
         Returns:
-            Standalone OAS document with just this endpoint
+            Standalone OAS document with just this endpoint and ALL
+            resolved component types (not just schemas)
 
         Raises:
             KeyError: If endpoint or method not found
@@ -57,16 +65,30 @@ class EndpointSlicer:
             }
         }
 
-        # Resolve all reference dependencies
-        resolved_schema_names = self.resolver.resolve_endpoint_refs(path, method)
+        # Include path-level parameters if present
+        if "parameters" in path_item:
+            extracted["paths"][path]["parameters"] = deepcopy(path_item["parameters"])
 
-        # Include resolved components
-        if resolved_schema_names or self.resolver.schemas:
-            extracted["components"] = {"schemas": {}}
-            for schema_name in resolved_schema_names:
-                if schema_name in self.resolver.schemas:
-                    extracted["components"]["schemas"][schema_name] = deepcopy(
-                        self.resolver.schemas[schema_name]
-                    )
+        # Resolve ALL component references (not just schemas)
+        resolved = self.resolver.resolve_all_refs(path, method)
+
+        # Build components section with ALL resolved types (T017)
+        components = self._build_components_section(resolved)
+        if components:
+            extracted["components"] = components
 
         return extracted
+
+    def _build_components_section(
+        self,
+        resolved: ResolvedComponents
+    ) -> Dict[str, Dict[str, Any]]:
+        """Build the components section from resolved components.
+
+        Args:
+            resolved: ResolvedComponents from resolver
+
+        Returns:
+            Dict suitable for extracted["components"], only including non-empty sections
+        """
+        return resolved.to_components_dict()

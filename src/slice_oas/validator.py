@@ -3,8 +3,8 @@
 Implements 7-phase validation checkpoint strategy.
 """
 
-from typing import Dict, Any, Optional, List, Tuple
-from slice_oas.models import ValidationResult, ValidationPhase
+from typing import Dict, Any, Optional, List, Tuple, Set
+from slice_oas.models import ValidationResult, ValidationPhase, ComponentType
 
 try:
     from openapi_spec_validator import validate_spec, ValidationError as OASValidationError
@@ -223,38 +223,67 @@ class EndpointValidator:
             )
 
     def _validate_reference_resolution(self) -> ValidationResult:
-        """Phase 4: Validate all $ref entries are resolvable within file."""
+        """Phase 4: Validate all $ref entries are resolvable within file.
+
+        Checks all 8 OpenAPI component types:
+        schemas, headers, parameters, responses, requestBodies,
+        securitySchemes, links, callbacks
+        """
         try:
-            def find_unresolved_refs(obj, schemas):
+            components = self.doc.get("components", {})
+
+            # Build lookup for all component types
+            component_lookups = {
+                "schemas": components.get("schemas", {}),
+                "headers": components.get("headers", {}),
+                "parameters": components.get("parameters", {}),
+                "responses": components.get("responses", {}),
+                "requestBodies": components.get("requestBodies", {}),
+                "securitySchemes": components.get("securitySchemes", {}),
+                "links": components.get("links", {}),
+                "callbacks": components.get("callbacks", {}),
+            }
+
+            def find_unresolved_refs(obj: Any) -> Optional[str]:
                 """Recursively find any unresolved $ref entries."""
                 if isinstance(obj, dict):
                     if "$ref" in obj:
                         ref = obj["$ref"]
-                        # Extract schema name from #/components/schemas/Name
-                        if ref.startswith("#/components/schemas/"):
-                            schema_name = ref.replace("#/components/schemas/", "")
-                            if schema_name not in schemas:
-                                return f"Reference '{ref}' not found in components.schemas"
+                        # Check if it's a component reference
+                        if ref.startswith("#/components/"):
+                            parts = ref.split("/")
+                            if len(parts) >= 4:
+                                comp_type = parts[2]
+                                comp_name = "/".join(parts[3:])
+                                lookup = component_lookups.get(comp_type, {})
+                                if comp_name not in lookup:
+                                    return f"Reference '{ref}' not found in components.{comp_type}"
 
                     for value in obj.values():
-                        result = find_unresolved_refs(value, schemas)
+                        result = find_unresolved_refs(value)
                         if result:
                             return result
 
                 elif isinstance(obj, list):
                     for item in obj:
-                        result = find_unresolved_refs(item, schemas)
+                        result = find_unresolved_refs(item)
                         if result:
                             return result
 
                 return None
 
-            components = self.doc.get("components", {})
-            schemas = components.get("schemas", {})
-
-            # Check paths and responses for unresolved refs
+            # Check paths for unresolved refs
             paths = self.doc.get("paths", {})
-            unresolved = find_unresolved_refs(paths, schemas)
+            unresolved = find_unresolved_refs(paths)
+            if unresolved:
+                return ValidationResult(
+                    phase=ValidationPhase.REFERENCE_RESOLUTION,
+                    passed=False,
+                    error_message=unresolved
+                )
+
+            # Also check components themselves for nested refs
+            unresolved = find_unresolved_refs(components)
             if unresolved:
                 return ValidationResult(
                     phase=ValidationPhase.REFERENCE_RESOLUTION,
@@ -278,13 +307,115 @@ class EndpointValidator:
         return ValidationResult(phase=ValidationPhase.COMPONENT_COMPLETENESS, passed=True)
 
     def _validate_payload_equivalence(self) -> ValidationResult:
-        """Phase 6: Validate extracted endpoint matches original."""
+        """Phase 6: Validate extracted endpoint matches original.
+
+        Ensures all $ref entries in the extracted document point to
+        components that exist and match the original document.
+        """
         # This phase is optional if original_doc not provided
         if not self.original_doc:
             return ValidationResult(phase=ValidationPhase.PAYLOAD_EQUIVALENCE, passed=True)
 
-        # Basic check: extracted paths match structure of original
-        return ValidationResult(phase=ValidationPhase.PAYLOAD_EQUIVALENCE, passed=True)
+        try:
+            # Collect all refs in the extracted document
+            extracted_refs = self._collect_all_refs(self.doc)
+
+            # Check each ref exists in extracted components
+            missing_refs = []
+            for ref in extracted_refs:
+                if not self._check_component_exists(ref, self.doc):
+                    missing_refs.append(ref)
+
+            if missing_refs:
+                return ValidationResult(
+                    phase=ValidationPhase.PAYLOAD_EQUIVALENCE,
+                    passed=False,
+                    error_message=f"Missing components in extracted document: {', '.join(missing_refs[:5])}"
+                    + (f" and {len(missing_refs) - 5} more" if len(missing_refs) > 5 else ""),
+                    details={"missing_refs": missing_refs}
+                )
+
+            # Verify extracted path/method exists in original
+            extracted_paths = self.doc.get("paths", {})
+            original_paths = self.original_doc.get("paths", {})
+
+            for path, path_item in extracted_paths.items():
+                if path not in original_paths:
+                    return ValidationResult(
+                        phase=ValidationPhase.PAYLOAD_EQUIVALENCE,
+                        passed=False,
+                        error_message=f"Path '{path}' not found in original document"
+                    )
+
+                original_path_item = original_paths[path]
+                for method in path_item.keys():
+                    if method in ["parameters"]:
+                        continue  # Path-level parameters, not a method
+                    if method not in original_path_item:
+                        return ValidationResult(
+                            phase=ValidationPhase.PAYLOAD_EQUIVALENCE,
+                            passed=False,
+                            error_message=f"Method '{method}' for path '{path}' not found in original"
+                        )
+
+            return ValidationResult(phase=ValidationPhase.PAYLOAD_EQUIVALENCE, passed=True)
+
+        except Exception as e:
+            return ValidationResult(
+                phase=ValidationPhase.PAYLOAD_EQUIVALENCE,
+                passed=False,
+                error_message=str(e)
+            )
+
+    def _collect_all_refs(self, obj: Any, refs: Optional[Set[str]] = None) -> Set[str]:
+        """Recursively collect all $ref entries in an object.
+
+        Args:
+            obj: Object to scan (dict, list, or primitive)
+            refs: Set to accumulate refs (created if None)
+
+        Returns:
+            Set of all $ref strings found
+        """
+        if refs is None:
+            refs = set()
+
+        if isinstance(obj, dict):
+            if "$ref" in obj:
+                refs.add(obj["$ref"])
+            for value in obj.values():
+                self._collect_all_refs(value, refs)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._collect_all_refs(item, refs)
+
+        return refs
+
+    def _check_component_exists(self, ref: str, doc: Dict[str, Any]) -> bool:
+        """Check if a component reference exists in a document.
+
+        Args:
+            ref: The $ref string (e.g., "#/components/schemas/User")
+            doc: Document to check
+
+        Returns:
+            True if component exists, False otherwise
+        """
+        if not ref.startswith("#/components/"):
+            # External refs or non-component refs - assume valid
+            return True
+
+        parts = ref.split("/")
+        if len(parts) < 4:
+            return False
+
+        comp_type = parts[2]
+        comp_name = "/".join(parts[3:])
+
+        components = doc.get("components", {})
+        type_components = components.get(comp_type, {})
+
+        return comp_name in type_components
 
     def _validate_version(self) -> ValidationResult:
         """Phase 7: Validate OAS version is correct."""

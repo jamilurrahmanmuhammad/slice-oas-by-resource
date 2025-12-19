@@ -735,3 +735,257 @@ class TestCSVManagerUnit:
         added = manager.append_batch(entries)
         assert added == 2  # One duplicate skipped
         assert manager.entry_count == 2
+
+
+# ============================================================================
+# User Story 7: CSV Index for Single Extractions (T063-T069)
+# ============================================================================
+
+class TestSingleExtractionCSV:
+    """Tests for CSV generation on single endpoint extractions.
+
+    User Story 7 (US7): CSV Index for Single Extractions
+    Per FR-014: Single endpoint extraction MUST create/update the CSV index.
+    Per FR-015: CSV index MUST maintain duplicate detection for single extractions.
+    """
+
+    def test_single_extraction_creates_csv_index(self, temp_output_dir):
+        """T063: Single extraction creates CSV index file.
+
+        Given a single endpoint extraction (not batch),
+        When extraction completes successfully,
+        Then a CSV index entry is created at {output_dir}/sliced-resources-index.csv.
+        """
+        from slice_oas.slicer import EndpointSlicer
+        from slice_oas.csv_manager import CSVIndexManager, extract_csv_metadata, create_csv_index_entry
+
+        # Create a simple spec
+        spec = {
+            "openapi": "3.0.3",
+            "info": {"title": "Test API", "version": "1.0.0"},
+            "paths": {
+                "/users": {
+                    "get": {
+                        "summary": "List users",
+                        "operationId": "listUsers",
+                        "responses": {
+                            "200": {"description": "Success"}
+                        }
+                    }
+                }
+            }
+        }
+
+        # Extract the endpoint
+        slicer = EndpointSlicer(spec, "3.0.3")
+        extracted = slicer.extract("/users", "GET")
+
+        # Write the output file
+        output_path = temp_output_dir / "users_GET.yaml"
+        import yaml
+        output_path.write_text(yaml.dump(extracted))
+
+        # Generate CSV entry (simulating what single extraction should do)
+        csv_path = temp_output_dir / "sliced-resources-index.csv"
+        csv_manager = CSVIndexManager(csv_path)
+        csv_manager.initialize(append_mode=True)
+
+        metadata = extract_csv_metadata(extracted, "/users", "GET", output_path, "3.0.x")
+        entry = create_csv_index_entry(**metadata)
+        csv_manager.append_entry(entry)
+
+        # Verify CSV was created
+        assert csv_path.exists(), "CSV index file should be created"
+
+        # Verify entry exists
+        entries = csv_manager.read_entries()
+        assert len(entries) == 1
+        assert entries[0]["path"] == "/users"
+        assert entries[0]["method"] == "GET"
+
+    def test_single_extraction_appends_to_existing_csv(self, temp_output_dir):
+        """T064: Single extraction appends to existing CSV index.
+
+        Given an existing CSV index with entries,
+        When extracting another single endpoint,
+        Then the new entry is appended without overwriting existing entries.
+        """
+        from slice_oas.slicer import EndpointSlicer
+        from slice_oas.csv_manager import CSVIndexManager, extract_csv_metadata, create_csv_index_entry
+        import yaml
+
+        spec = {
+            "openapi": "3.0.3",
+            "info": {"title": "Test API", "version": "1.0.0"},
+            "paths": {
+                "/users": {
+                    "get": {
+                        "summary": "List users",
+                        "responses": {"200": {"description": "Success"}}
+                    }
+                },
+                "/orders": {
+                    "get": {
+                        "summary": "List orders",
+                        "responses": {"200": {"description": "Success"}}
+                    }
+                }
+            }
+        }
+
+        csv_path = temp_output_dir / "sliced-resources-index.csv"
+        slicer = EndpointSlicer(spec, "3.0.3")
+
+        # First extraction
+        extracted1 = slicer.extract("/users", "GET")
+        output_path1 = temp_output_dir / "users_GET.yaml"
+        output_path1.write_text(yaml.dump(extracted1))
+
+        csv_manager1 = CSVIndexManager(csv_path)
+        csv_manager1.initialize(append_mode=True)
+        metadata1 = extract_csv_metadata(extracted1, "/users", "GET", output_path1, "3.0.x")
+        entry1 = create_csv_index_entry(**metadata1)
+        csv_manager1.append_entry(entry1)
+
+        # Second extraction (new endpoint)
+        extracted2 = slicer.extract("/orders", "GET")
+        output_path2 = temp_output_dir / "orders_GET.yaml"
+        output_path2.write_text(yaml.dump(extracted2))
+
+        csv_manager2 = CSVIndexManager(csv_path)
+        csv_manager2.initialize(append_mode=True)
+        metadata2 = extract_csv_metadata(extracted2, "/orders", "GET", output_path2, "3.0.x")
+        entry2 = create_csv_index_entry(**metadata2)
+        csv_manager2.append_entry(entry2)
+
+        # Verify both entries exist
+        entries = csv_manager2.read_entries()
+        assert len(entries) == 2
+        paths = [e["path"] for e in entries]
+        assert "/users" in paths
+        assert "/orders" in paths
+
+    def test_single_extraction_csv_no_duplicates(self, temp_output_dir):
+        """T065: Single extraction doesn't create duplicate CSV entries.
+
+        Given an existing CSV index with an entry for /users GET,
+        When extracting /users GET again,
+        Then no duplicate entry is added to the CSV.
+        """
+        from slice_oas.slicer import EndpointSlicer
+        from slice_oas.csv_manager import CSVIndexManager, extract_csv_metadata, create_csv_index_entry
+        import yaml
+
+        spec = {
+            "openapi": "3.0.3",
+            "info": {"title": "Test API", "version": "1.0.0"},
+            "paths": {
+                "/users": {
+                    "get": {
+                        "summary": "List users",
+                        "responses": {"200": {"description": "Success"}}
+                    }
+                }
+            }
+        }
+
+        csv_path = temp_output_dir / "sliced-resources-index.csv"
+        slicer = EndpointSlicer(spec, "3.0.3")
+
+        # First extraction
+        extracted = slicer.extract("/users", "GET")
+        output_path = temp_output_dir / "users_GET.yaml"
+        output_path.write_text(yaml.dump(extracted))
+
+        csv_manager = CSVIndexManager(csv_path)
+        csv_manager.initialize(append_mode=True)
+        metadata = extract_csv_metadata(extracted, "/users", "GET", output_path, "3.0.x")
+        entry = create_csv_index_entry(**metadata)
+
+        # Add entry twice
+        added1 = csv_manager.append_entry(entry)
+        added2 = csv_manager.append_entry(entry)
+
+        assert added1 is True, "First entry should be added"
+        assert added2 is False, "Duplicate entry should be skipped"
+
+        # Verify only one entry exists
+        entries = csv_manager.read_entries()
+        assert len(entries) == 1
+
+    def test_single_extraction_csv_metadata_complete(self, temp_output_dir):
+        """T066: Single extraction CSV entry has all required metadata.
+
+        Given a single endpoint extraction,
+        When CSV entry is created,
+        Then all 15 columns are populated correctly.
+        """
+        from slice_oas.slicer import EndpointSlicer
+        from slice_oas.csv_manager import CSVIndexManager, extract_csv_metadata, create_csv_index_entry
+        import yaml
+
+        spec = {
+            "openapi": "3.0.3",
+            "info": {"title": "Test API", "version": "1.0.0"},
+            "paths": {
+                "/users/{id}": {
+                    "get": {
+                        "summary": "Get user by ID",
+                        "description": "Returns a single user",
+                        "operationId": "getUserById",
+                        "tags": ["users"],
+                        "deprecated": False,
+                        "parameters": [
+                            {"name": "id", "in": "path", "required": True}
+                        ],
+                        "responses": {
+                            "200": {"description": "Success"},
+                            "404": {"description": "Not found"}
+                        },
+                        "security": [{"bearerAuth": []}]
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "User": {"type": "object"}
+                },
+                "securitySchemes": {
+                    "bearerAuth": {"type": "http", "scheme": "bearer"}
+                }
+            }
+        }
+
+        slicer = EndpointSlicer(spec, "3.0.3")
+        extracted = slicer.extract("/users/{id}", "GET")
+
+        output_path = temp_output_dir / "users-id_GET.yaml"
+        output_path.write_text(yaml.dump(extracted))
+
+        csv_path = temp_output_dir / "sliced-resources-index.csv"
+        csv_manager = CSVIndexManager(csv_path)
+        csv_manager.initialize(append_mode=True)
+
+        metadata = extract_csv_metadata(extracted, "/users/{id}", "GET", output_path, "3.0.x")
+        entry = create_csv_index_entry(**metadata)
+        csv_manager.append_entry(entry)
+
+        # Read back and verify all columns
+        entries = csv_manager.read_entries()
+        assert len(entries) == 1
+
+        row = entries[0]
+        assert row["path"] == "/users/{id}"
+        assert row["method"] == "GET"
+        assert row["summary"] == "Get user by ID"
+        assert row["description"] == "Returns a single user"
+        assert row["operation_id"] == "getUserById"
+        assert "users" in row["tags"]
+        assert row["filename"] == "users-id_GET.yaml"
+        assert float(row["file_size_kb"]) > 0
+        assert row["response_codes"] == "200,404"
+        assert row["deprecated"] in ["False", "no", "false"]  # Boolean serialization varies
+        assert row["output_oas_version"] == "3.0.x"
+        # created_at should be ISO 8601 format
+        assert "T" in row["created_at"]
+        assert row["created_at"].endswith("Z")

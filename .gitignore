@@ -56,3 +56,4 @@ sliced/
 .DS_Store
 Thumbs.db
 *.tmp
+.claude/settings.local.json

@@ -111,8 +111,8 @@ slice-oas /path/to/api.yaml --batch --version 3.1 --output ./output/
 Each extracted file is a complete, valid OpenAPI specification containing:
 
 - The single endpoint (path + method)
-- All referenced components (data structures, parameters, headers)
-- All transitive dependencies (nested references)
+- All 8 component types resolved: schemas, parameters, headers, responses, requestBodies, securitySchemes, links, and callbacks
+- All transitive dependencies (nested references across component types)
 - Security scheme definitions if required
 - Server information from the original spec
 

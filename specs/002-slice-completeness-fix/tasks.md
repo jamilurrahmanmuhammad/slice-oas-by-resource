@@ -266,9 +266,9 @@
 - [x] T083 [P] Add test for circular references across component types
 - [x] T084 [P] Add test for transitive dependency chains (response → header → schema)
 - [x] T085 Run full test suite - verify all 237 tests pass (no regressions)
-- [ ] T086 Run performance baseline - verify extraction < 5s (SC-007)
-- [ ] T087 Run quickstart.md validation scenarios
-- [ ] T088 Update any documentation affected by changes
+- [x] T086 Run performance baseline - verify extraction < 5s (SC-007) - actual: ~0.5ms
+- [x] T087 Run quickstart.md validation scenarios - all checklist items verified
+- [x] T088 Update any documentation affected by changes - README.md, USAGE.md, quickstart.md
 
 ---
 

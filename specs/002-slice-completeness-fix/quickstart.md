@@ -143,12 +143,12 @@ Closes: partial fix for #002-slice-completeness-fix"
 
 ## Verification Checklist
 
-- [ ] All 195 existing tests still pass
-- [ ] New tests for each component type (headers, parameters, etc.)
-- [ ] Each component type has RED commit followed by GREEN commit
-- [ ] Phase 6 validation actually compares parent/child
-- [ ] Single extractions generate CSV index
-- [ ] No performance regression (extraction < 5s)
+- [x] All 195 existing tests still pass (now 237 tests)
+- [x] New tests for each component type (headers, parameters, responses, requestBodies, securitySchemes, links, callbacks)
+- [x] Each component type has RED commit followed by GREEN commit
+- [x] Phase 6 validation actually compares parent/child (10 tests)
+- [x] Single extractions generate CSV index (4 tests)
+- [x] No performance regression (extraction < 5s) - actual: ~0.5ms
 
 ## Common Issues
 

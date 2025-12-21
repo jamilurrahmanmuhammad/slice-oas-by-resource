@@ -14,6 +14,7 @@ from slice_oas.validator import EndpointValidator
 from slice_oas.generator import OASGenerator
 from slice_oas.batch_processor import create_batch_processor
 from slice_oas.progress import create_progress_callback
+from slice_oas.csv_manager import CSVIndexManager, extract_csv_metadata, create_csv_index_entry
 
 
 def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -443,13 +444,39 @@ def _extract_single_endpoint(args, doc: dict, oas_version: str) -> None:
         )
         sys.exit(1)
 
-    # Step 8: Report success
+    # Step 8: Generate CSV index entry (unless --no-csv flag is set)
+    generate_csv = not getattr(args, 'no_csv', False)
+    csv_index_path = None
+
+    if generate_csv:
+        csv_path = output_dir / "sliced-resources-index.csv"
+        csv_manager = CSVIndexManager(csv_path)
+        csv_manager.initialize(append_mode=True)
+
+        # Determine output version
+        output_version = getattr(args, 'output_version', '3.0.x')
+        if hasattr(args, 'convert_version') and args.convert_version:
+            output_version = args.convert_version
+
+        metadata = extract_csv_metadata(
+            extracted_doc, endpoint_path, endpoint_method, output_path, output_version
+        )
+        entry = create_csv_index_entry(**metadata)
+        added = csv_manager.append_entry(entry)
+
+        if added:
+            csv_index_path = csv_path
+            sys.stdout.write(f"CSV index updated: {csv_path}\n")
+
+    # Step 9: Report success
     sys.stdout.write(
         f"\n✓ Extraction complete!\n"
         f"Endpoint: {endpoint_method.upper()} {endpoint_path}\n"
         f"Output: {output_path}\n"
         f"Format: {file_ext.upper()}\n"
     )
+    if csv_index_path:
+        sys.stdout.write(f"CSV index: {csv_index_path}\n")
 
 
 def _extract_batch(args, doc: dict, oas_version: str) -> None:

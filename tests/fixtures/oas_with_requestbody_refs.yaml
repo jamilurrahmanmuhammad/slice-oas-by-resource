@@ -1,0 +1,126 @@
+openapi: "3.0.3"
+info:
+  title: "RequestBody Reference Test API"
+  version: "1.0.0"
+  description: "Test fixture for requestBody $ref resolution"
+paths:
+  /users:
+    post:
+      summary: "Create a new user"
+      operationId: createUser
+      requestBody:
+        $ref: "#/components/requestBodies/CreateUser"
+      responses:
+        "201":
+          description: "User created"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: "Invalid input"
+  /users/{userId}:
+    put:
+      summary: "Update user"
+      operationId: updateUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateUser"
+      responses:
+        "200":
+          description: "User updated"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /documents:
+    post:
+      summary: "Upload document"
+      operationId: uploadDocument
+      requestBody:
+        $ref: "#/components/requestBodies/UploadDocument"
+      responses:
+        "201":
+          description: "Document uploaded"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+components:
+  requestBodies:
+    CreateUser:
+      description: "User creation payload"
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UserInput"
+    UpdateUser:
+      description: "User update payload"
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UserInput"
+        application/xml:
+          schema:
+            $ref: "#/components/schemas/UserInput"
+    UploadDocument:
+      description: "Document upload payload"
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            $ref: "#/components/schemas/DocumentUpload"
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    UserInput:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        size:
+          type: integer
+    DocumentUpload:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+        description:
+          type: string

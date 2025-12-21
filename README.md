@@ -69,8 +69,8 @@ slice-oas api-31.yaml --batch --convert-version 3.0 --output ./sliced/
 
 Each extracted file contains:
 - The single endpoint (path + method)
-- All referenced components (schemas, parameters, headers)
-- All transitive dependencies
+- All referenced components (schemas, parameters, headers, responses, requestBodies, links, callbacks, pathItems)
+- All transitive dependencies automatically resolved
 - Security scheme definitions (if required)
 
 ### CSV Index
@@ -202,7 +202,7 @@ Contributions are welcome! Please read our contributing guidelines and submit pu
 
 ## Status
 
-Production-ready with 150+ comprehensive tests covering:
+Production-ready with 230+ comprehensive tests covering:
 - Single endpoint extraction
 - Batch processing with filtering
 - Version conversion (3.0 ↔ 3.1)

@@ -1,0 +1,97 @@
+openapi: "3.0.3"
+info:
+  title: "Parameter Reference Test API"
+  version: "1.0.0"
+  description: "Test fixture for parameter $ref resolution"
+paths:
+  /users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/userId"
+    get:
+      summary: "Get user by ID"
+      operationId: getUserById
+      parameters:
+        - $ref: "#/components/parameters/includeDeleted"
+      responses:
+        "200":
+          description: "Success"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /users:
+    get:
+      summary: "List users with pagination"
+      operationId: listUsers
+      parameters:
+        - $ref: "#/components/parameters/pageOffset"
+        - $ref: "#/components/parameters/pageLimit"
+        - $ref: "#/components/parameters/sortBy"
+      responses:
+        "200":
+          description: "Success"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+components:
+  parameters:
+    userId:
+      name: userId
+      in: path
+      required: true
+      description: "Unique user identifier"
+      schema:
+        $ref: "#/components/schemas/UserId"
+    includeDeleted:
+      name: includeDeleted
+      in: query
+      required: false
+      description: "Include soft-deleted users"
+      schema:
+        type: boolean
+        default: false
+    pageOffset:
+      name: offset
+      in: query
+      required: false
+      description: "Number of items to skip"
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    pageLimit:
+      name: limit
+      in: query
+      required: false
+      description: "Maximum items to return"
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    sortBy:
+      name: sortBy
+      in: query
+      required: false
+      description: "Field to sort by"
+      schema:
+        type: string
+        enum: [name, created_at, updated_at]
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UserId"
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    UserId:
+      type: string
+      format: uuid
+      description: "Unique user identifier"

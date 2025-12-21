@@ -1,0 +1,220 @@
+openapi: "3.0.3"
+info:
+  title: "All Component References Test API"
+  version: "1.0.0"
+  description: "Test fixture with all 8 component types referenced"
+security:
+  - api_key: []
+paths:
+  /orders:
+    post:
+      summary: "Create order with all component types"
+      operationId: createOrder
+      security:
+        - bearer_auth: []
+      parameters:
+        - $ref: "#/components/parameters/correlationId"
+      requestBody:
+        $ref: "#/components/requestBodies/CreateOrder"
+      responses:
+        "201":
+          description: "Order created"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-Rate-Limit:
+              $ref: "#/components/headers/X-Rate-Limit"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+          links:
+            GetOrderById:
+              $ref: "#/components/links/GetOrderById"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      callbacks:
+        onOrderUpdate:
+          $ref: "#/components/callbacks/onOrderUpdate"
+  /orders/{orderId}:
+    get:
+      summary: "Get order by ID"
+      operationId: getOrderById
+      parameters:
+        - $ref: "#/components/parameters/orderId"
+      responses:
+        "200":
+          description: "Order found"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  headers:
+    X-Request-Id:
+      description: "Unique request identifier"
+      schema:
+        type: string
+        format: uuid
+    X-Rate-Limit:
+      description: "Rate limit remaining"
+      schema:
+        type: integer
+  parameters:
+    correlationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: "Correlation ID for tracing"
+      schema:
+        type: string
+        format: uuid
+    orderId:
+      name: orderId
+      in: path
+      required: true
+      description: "Order identifier"
+      schema:
+        $ref: "#/components/schemas/OrderId"
+  responses:
+    BadRequest:
+      description: "Bad request"
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: "Unauthorized"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: "Not found"
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  requestBodies:
+    CreateOrder:
+      description: "Order creation request"
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/OrderInput"
+  securitySchemes:
+    api_key:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    bearer_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  links:
+    GetOrderById:
+      operationId: getOrderById
+      parameters:
+        orderId: "$response.body#/id"
+      description: "Get the created order"
+  callbacks:
+    onOrderUpdate:
+      "{$request.body#/webhookUrl}":
+        post:
+          summary: "Order status update"
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/OrderStatusUpdate"
+          responses:
+            "200":
+              description: "Acknowledged"
+  schemas:
+    Order:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/OrderId"
+        status:
+          type: string
+          enum: [pending, confirmed, shipped, delivered]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        total:
+          type: number
+    OrderId:
+      type: string
+      format: uuid
+      description: "Unique order identifier"
+    OrderInput:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+        webhookUrl:
+          type: string
+          format: uri
+    OrderItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+    OrderItemInput:
+      type: object
+      required:
+        - productId
+        - quantity
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    OrderStatusUpdate:
+      type: object
+      properties:
+        orderId:
+          $ref: "#/components/schemas/OrderId"
+        previousStatus:
+          type: string
+        newStatus:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string

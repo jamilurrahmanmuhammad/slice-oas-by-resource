@@ -1,0 +1,108 @@
+openapi: "3.0.3"
+info:
+  title: "Link Reference Test API"
+  version: "1.0.0"
+  description: "Test fixture for link $ref resolution"
+paths:
+  /users:
+    post:
+      summary: "Create user"
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: "User created"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+          links:
+            GetUserById:
+              $ref: "#/components/links/GetUserById"
+            GetUserOrders:
+              $ref: "#/components/links/GetUserOrders"
+  /users/{userId}:
+    get:
+      summary: "Get user by ID"
+      operationId: getUserById
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "User found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+          links:
+            GetUserOrders:
+              $ref: "#/components/links/GetUserOrders"
+  /users/{userId}/orders:
+    get:
+      summary: "Get user orders"
+      operationId: getUserOrders
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "Orders list"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+components:
+  links:
+    GetUserById:
+      operationId: getUserById
+      parameters:
+        userId: "$response.body#/id"
+      description: "Get the created user by ID"
+    GetUserOrders:
+      operationId: getUserOrders
+      parameters:
+        userId: "$response.body#/id"
+      description: "Get orders for this user"
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+    UserInput:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        total:
+          type: number
